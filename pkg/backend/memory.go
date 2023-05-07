@@ -1,19 +1,25 @@
 package backend
 
 import (
+	"log"
 	"sync"
 )
 
 type MemoryBackend struct {
-	memory []byte
-	lock   sync.Mutex
+	memory  []byte
+	lock    sync.Mutex
+	verbose bool
 }
 
-func NewMemoryBackend(memory []byte) *MemoryBackend {
-	return &MemoryBackend{memory, sync.Mutex{}}
+func NewMemoryBackend(memory []byte, verbose bool) *MemoryBackend {
+	return &MemoryBackend{memory, sync.Mutex{}, verbose}
 }
 
 func (b *MemoryBackend) ReadAt(p []byte, off int64) (n int, err error) {
+	if b.verbose {
+		log.Printf("ReadAt(len(p) = %v, off = %v)", len(p), off)
+	}
+
 	b.lock.Lock()
 
 	n = copy(p, b.memory[off:off+int64(len(p))])
@@ -24,6 +30,10 @@ func (b *MemoryBackend) ReadAt(p []byte, off int64) (n int, err error) {
 }
 
 func (b *MemoryBackend) WriteAt(p []byte, off int64) (n int, err error) {
+	if b.verbose {
+		log.Printf("WriteAt(len(p) = %v, off = %v)", len(p), off)
+	}
+
 	b.lock.Lock()
 
 	n = copy(b.memory[off:off+int64(len(p))], p)
@@ -34,9 +44,17 @@ func (b *MemoryBackend) WriteAt(p []byte, off int64) (n int, err error) {
 }
 
 func (b *MemoryBackend) Size() (int64, error) {
+	if b.verbose {
+		log.Println("Size()")
+	}
+
 	return int64(len(b.memory)), nil
 }
 
 func (b *MemoryBackend) Sync() error {
+	if b.verbose {
+		log.Println("Sync()")
+	}
+
 	return nil
 }
