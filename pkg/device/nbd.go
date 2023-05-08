@@ -81,6 +81,8 @@ func (d *Device) Open() error {
 		}
 	}()
 
+	ready := make(chan struct{})
+
 	go func() {
 		d.cf = os.NewFile(uintptr(fds[1]), "client")
 
@@ -93,6 +95,14 @@ func (d *Device) Open() error {
 
 		d.cc = c.(*net.UnixConn)
 
+		if d.clientOptions == nil {
+			d.clientOptions = &client.Options{}
+		}
+
+		d.clientOptions.OnConnected = func() {
+			ready <- struct{}{}
+		}
+
 		if err := client.Connect(d.cc, d.f, d.clientOptions); err != nil {
 			if !utils.IsClosedErr(err) {
 				d.errs <- err
@@ -101,6 +111,9 @@ func (d *Device) Open() error {
 			return
 		}
 	}()
+
+	// TODO: This is still racy
+	<-ready
 
 	return nil
 }
