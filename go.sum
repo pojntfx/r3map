@@ -1,8 +1,13 @@
 github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
 github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
+github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
+github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
+github.com/pilebones/go-udev v0.9.0 h1:N1uEO/SxUwtIctc0WLU0t69JeBxIYEYnj8lT/Nabl9Q=
+github.com/pilebones/go-udev v0.9.0/go.mod h1:T2eI2tUSK0hA2WS5QLjXJUfQkluZQu+18Cqvem3CaXI=
 github.com/pojntfx/dudirekta v0.5.0 h1:oI6uHA0wCVwyLKamt5ECcHyXvgqcEdV83KdDEjnBUYw=
 github.com/pojntfx/dudirekta v0.5.0/go.mod h1:2G79XDOe1c3Nz3G+LQfiNZ5K/SS3b2TP1K9JyRt8woI=
-github.com/pojntfx/go-nbd v0.1.2 h1:PKtTEE3+tAHrzau3W9omEnVJtYC8Wwx4nhWc+5aN+og=
-github.com/pojntfx/go-nbd v0.1.2/go.mod h1:g43OMsxsVp0vDwzAxr1A9yfbgbi/jmUkg0ioz8vnV1Y=
+github.com/pojntfx/go-nbd v0.1.3 h1:wVw5AL1UcGavRTvIkW7+HMO5pGsGOohQOstZYTsl2Lg=
+github.com/pojntfx/go-nbd v0.1.3/go.mod h1:SehHnbi2e8NiSAKby42Itm8SIoS7b+wAprsfPH3qgYk=
 github.com/teivah/broadcast v0.1.0 h1:UMs1tn8w20Xlnod+VbLbwH3dzEH2zfJy4lxdzZjQLL0=
 github.com/teivah/broadcast v0.1.0/go.mod h1:mXEgvXdYz2xUkQFARxI+jyX1MfCBwMDiGjIKSAsEq1g=

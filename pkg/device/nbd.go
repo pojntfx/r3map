@@ -112,7 +112,6 @@ func (d *Device) Open() error {
 		}
 	}()
 
-	// TODO: This is still racy
 	<-ready
 
 	return nil
