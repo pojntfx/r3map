@@ -8,26 +8,64 @@ import (
 
 func TestSyncedReadWriterAt(t *testing.T) {
 	tests := []struct {
-		name             string
-		chunkSize        int64
-		chunks           int64
-		input            []byte
-		offset           int64
-		expectedData     []byte
-		expectedN        int
-		expectedReadErr  error
-		expectedWriteErr error
+		name               string
+		chunkSize          int64
+		chunks             int64
+		input              []byte
+		offset             int64
+		expectedData       []byte
+		expectedN          int
+		expectedReadErr    error
+		expectedWriteErr   error
+		writeToRemoteFirst bool
 	}{
 		{
-			name:             "Write and read without error",
-			chunkSize:        4,
-			chunks:           1,
-			input:            []byte("test"),
-			offset:           0,
-			expectedData:     []byte("test"),
-			expectedN:        4,
-			expectedReadErr:  nil,
-			expectedWriteErr: nil,
+			name:               "Write to first chunk and read without error",
+			chunkSize:          4,
+			chunks:             1,
+			input:              []byte("test"),
+			offset:             0,
+			expectedData:       []byte("test"),
+			expectedN:          4,
+			expectedReadErr:    nil,
+			expectedWriteErr:   nil,
+			writeToRemoteFirst: false,
+		},
+		{
+			name:               "Write to second chunk and read without error",
+			chunkSize:          4,
+			chunks:             2,
+			input:              []byte("test"),
+			offset:             4,
+			expectedData:       []byte("test"),
+			expectedN:          4,
+			expectedReadErr:    nil,
+			expectedWriteErr:   nil,
+			writeToRemoteFirst: false,
+		},
+		{
+			name:               "Write to first chunk in remote and read from synced",
+			chunkSize:          4,
+			chunks:             1,
+			input:              []byte("test"),
+			offset:             0,
+			expectedData:       []byte("test"),
+			expectedN:          4,
+			expectedReadErr:    nil,
+			expectedWriteErr:   nil,
+			writeToRemoteFirst: true,
+		},
+		{
+			name:               "Write to second chunk in remote and read from synced",
+			chunkSize:          4,
+			chunks:             2,
+			input:              []byte("test"),
+			offset:             4,
+			expectedData:       []byte("test"),
+			expectedN:          4,
+			expectedReadErr:    nil,
+			expectedWriteErr:   nil,
+			writeToRemoteFirst: true,
 		},
 	}
 
@@ -58,13 +96,24 @@ func TestSyncedReadWriterAt(t *testing.T) {
 
 			srw := NewSyncedReadWriterAt(remote, local)
 
-			wn, werr := srw.WriteAt(tc.input, tc.offset)
-			if werr != tc.expectedWriteErr {
-				t.Errorf("WriteAt error: expected %v, got %v", tc.expectedWriteErr, werr)
-			}
+			if tc.writeToRemoteFirst {
+				wn, werr := remote.WriteAt(tc.input, tc.offset)
+				if werr != tc.expectedWriteErr {
+					t.Errorf("WriteAt to remote error: expected %v, got %v", tc.expectedWriteErr, werr)
+				}
 
-			if wn != tc.expectedN {
-				t.Errorf("WriteAt bytes written: expected %v, got %v", tc.expectedN, wn)
+				if wn != tc.expectedN {
+					t.Errorf("WriteAt to remote bytes written: expected %v, got %v", tc.expectedN, wn)
+				}
+			} else {
+				wn, werr := srw.WriteAt(tc.input, tc.offset)
+				if werr != tc.expectedWriteErr {
+					t.Errorf("WriteAt error: expected %v, got %v", tc.expectedWriteErr, werr)
+				}
+
+				if wn != tc.expectedN {
+					t.Errorf("WriteAt bytes written: expected %v, got %v", tc.expectedN, wn)
+				}
 			}
 
 			rbuf := make([]byte, len(tc.input))
