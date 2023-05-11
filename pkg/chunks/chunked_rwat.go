@@ -12,14 +12,16 @@ var (
 )
 
 type ChunkedReadWriterAt struct {
-	data      []byte
+	backend   ReadWriterAt
 	chunkSize int64
+	chunks    int64
 }
 
-func NewChunkedReadWriterAt(chunkSize, chunks int64) *ChunkedReadWriterAt {
+func NewChunkedReadWriterAt(backend ReadWriterAt, chunkSize, chunks int64) *ChunkedReadWriterAt {
 	return &ChunkedReadWriterAt{
-		make([]byte, chunkSize*chunks),
+		backend,
 		chunkSize,
+		chunks,
 	}
 }
 
@@ -28,11 +30,15 @@ func (c *ChunkedReadWriterAt) ReadAt(p []byte, off int64) (n int, err error) {
 		return 0, ErrInvalidOffset
 	}
 
-	if off < 0 || off >= int64(len(c.data)) {
+	if off < 0 || off >= int64(c.chunkSize*c.chunks) {
 		return 0, ErrInvalidReadSize
 	}
 
-	n = copy(p, c.data[off:off+c.chunkSize])
+	n, err = c.backend.ReadAt(p, off)
+	if err != nil {
+		return 0, err
+	}
+
 	if n != len(p) {
 		return n, io.EOF
 	}
@@ -45,11 +51,15 @@ func (c *ChunkedReadWriterAt) WriteAt(p []byte, off int64) (n int, err error) {
 		return 0, ErrInvalidOffset
 	}
 
-	if off < 0 || off+c.chunkSize > int64(len(c.data)) {
+	if off < 0 || off+c.chunkSize > int64(c.chunkSize*c.chunks) {
 		return 0, ErrInvalidWriteSize
 	}
 
-	n = copy(c.data[off:off+c.chunkSize], p)
+	n, err = c.backend.WriteAt(p, off)
+	if err != nil {
+		return 0, err
+	}
+
 	if n != len(p) {
 		return n, io.ErrShortWrite
 	}

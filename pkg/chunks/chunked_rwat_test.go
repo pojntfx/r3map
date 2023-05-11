@@ -2,6 +2,7 @@ package chunks
 
 import (
 	"bytes"
+	"os"
 	"testing"
 )
 
@@ -131,7 +132,17 @@ func TestChunkedReadWriterAt(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			crw := NewChunkedReadWriterAt(tc.chunkSize, tc.chunks)
+			f, err := os.CreateTemp("", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.RemoveAll(f.Name())
+
+			if err := f.Truncate(tc.chunkSize * tc.chunks); err != nil {
+				t.Fatal(err)
+			}
+
+			crw := NewChunkedReadWriterAt(f, tc.chunkSize, tc.chunks)
 			wbuf := make([]byte, tc.chunkSize)
 
 			if tc.input != nil {
