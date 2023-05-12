@@ -10,7 +10,7 @@ type Puller struct {
 	backend   io.ReaderAt
 	chunkSize int64
 	chunks    int64
-	workers   int
+	workers   int64
 	errChan   chan error
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -30,20 +30,21 @@ func NewPuller(ctx context.Context, backend io.ReaderAt, chunkSize, chunks int64
 	}
 }
 
-func (p *Puller) Init(workers int) error {
+func (p *Puller) Init(workers int64) error {
 	p.workers = workers
-	for i := 0; i < workers; i++ {
+	for i := int64(0); i < workers; i++ {
 		p.wg.Add(1)
+
 		go p.pullChunks(i)
 	}
 
 	return nil
 }
 
-func (p *Puller) pullChunks(workerId int) {
+func (p *Puller) pullChunks(workerId int64) {
 	defer p.wg.Done()
 
-	for i := int64(workerId); i < p.chunks; i += int64(p.workers) {
+	for i := workerId; i < p.chunks; i += p.workers {
 		select {
 		case <-p.ctx.Done():
 			return

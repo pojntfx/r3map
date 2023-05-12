@@ -12,7 +12,7 @@ func TestPuller(t *testing.T) {
 		name      string
 		chunkSize int64
 		chunks    int64
-		workers   int
+		workers   int64
 		data      [][]byte
 	}{
 		{
