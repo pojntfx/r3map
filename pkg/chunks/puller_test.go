@@ -9,39 +9,132 @@ import (
 
 func TestPuller(t *testing.T) {
 	tests := []struct {
-		name      string
-		chunkSize int64
-		chunks    int64
-		workers   int64
-		data      [][]byte
+		name         string
+		chunkSize    int64
+		chunks       int64
+		workers      int64
+		data         [][]byte
+		pullPriority func(offset int64) int64
 	}{
 		{
-			name:      "Pull 1 chunk with 1 worker",
+			name:      "Pull 1 chunk with 1 worker and generic pull priority heuristic",
 			chunkSize: 4,
 			chunks:    2,
 			workers:   1,
 			data:      [][]byte{[]byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return 1
+			},
 		},
 		{
-			name:      "Pull 1 chunk with 2 workers",
+			name:      "Pull 1 chunk with 2 workers and generic pull priority heuristic",
 			chunkSize: 4,
 			chunks:    2,
 			workers:   2,
 			data:      [][]byte{[]byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return 1
+			},
 		},
 		{
-			name:      "Pull 2 chunks with 1 worker",
+			name:      "Pull 2 chunks with 1 worker and generic pull priority heuristic",
 			chunkSize: 4,
 			chunks:    2,
 			workers:   1,
 			data:      [][]byte{[]byte("test"), []byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return 1
+			},
 		},
 		{
-			name:      "Pull 2 chunks with 2 workers",
+			name:      "Pull 2 chunks with 2 workers and generic pull priority heuristic",
 			chunkSize: 4,
 			chunks:    2,
 			workers:   2,
 			data:      [][]byte{[]byte("test"), []byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return 1
+			},
+		},
+		{
+			name:      "Pull 1 chunk with 1 worker and linear pull priority heuristic",
+			chunkSize: 4,
+			chunks:    2,
+			workers:   1,
+			data:      [][]byte{[]byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return offset
+			},
+		},
+		{
+			name:      "Pull 1 chunk with 2 workers and linear pull priority heuristic",
+			chunkSize: 4,
+			chunks:    2,
+			workers:   2,
+			data:      [][]byte{[]byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return offset
+			},
+		},
+		{
+			name:      "Pull 2 chunks with 1 worker and linear pull priority heuristic",
+			chunkSize: 4,
+			chunks:    2,
+			workers:   1,
+			data:      [][]byte{[]byte("test"), []byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return offset
+			},
+		},
+		{
+			name:      "Pull 2 chunks with 2 workers and linear pull priority heuristic",
+			chunkSize: 4,
+			chunks:    2,
+			workers:   2,
+			data:      [][]byte{[]byte("test"), []byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return offset
+			},
+		},
+		{
+			name:      "Pull 1 chunk with 1 worker and decreasing pull priority heuristic",
+			chunkSize: 4,
+			chunks:    2,
+			workers:   1,
+			data:      [][]byte{[]byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return -offset
+			},
+		},
+		{
+			name:      "Pull 1 chunk with 2 workers and decreasing pull priority heuristic",
+			chunkSize: 4,
+			chunks:    2,
+			workers:   2,
+			data:      [][]byte{[]byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return -offset
+			},
+		},
+		{
+			name:      "Pull 2 chunks with 1 worker and decreasing pull priority heuristic",
+			chunkSize: 4,
+			chunks:    2,
+			workers:   1,
+			data:      [][]byte{[]byte("test"), []byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return -offset
+			},
+		},
+		{
+			name:      "Pull 2 chunks with 2 workers and decreasing pull priority heuristic",
+			chunkSize: 4,
+			chunks:    2,
+			workers:   2,
+			data:      [][]byte{[]byte("test"), []byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return -offset
+			},
 		},
 	}
 
@@ -81,7 +174,13 @@ func TestPuller(t *testing.T) {
 
 			ctx := context.Background()
 
-			puller := NewPuller(ctx, srw, tc.chunkSize, tc.chunks)
+			puller := NewPuller(
+				ctx,
+				srw,
+				tc.chunkSize,
+				tc.chunks,
+				tc.pullPriority,
+			)
 			err = puller.Init(tc.workers)
 			if err != nil {
 				t.Fatal(err)

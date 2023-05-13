@@ -58,7 +58,15 @@ func main() {
 
 	ctx := context.Background()
 
-	puller := chunks.NewPuller(ctx, srw, *chunkSize, *chunkCount)
+	puller := chunks.NewPuller(
+		ctx,
+		srw,
+		*chunkSize,
+		*chunkCount,
+		func(offset int64) int64 {
+			return 1
+		},
+	)
 
 	before := time.Now()
 	if err := puller.Init(*workers); err != nil {
