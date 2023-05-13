@@ -60,7 +60,7 @@ func (a *ArbitraryReadWriterAt) WriteAt(p []byte, off int64) (n int, err error) 
 			_, err = a.backend.WriteAt(p[totalWritten:totalWritten+writeSize], chunkIndex*a.chunkSize)
 		} else {
 			buf := make([]byte, a.chunkSize)
-			_, err := a.backend.ReadAt(buf, chunkIndex*a.chunkSize) // Read the existing chunk
+			_, err = a.backend.ReadAt(buf, chunkIndex*a.chunkSize) // Read the existing chunk
 			if err != nil && (err != io.EOF || indexedOffset != 0) {
 				return totalWritten, err
 			}
