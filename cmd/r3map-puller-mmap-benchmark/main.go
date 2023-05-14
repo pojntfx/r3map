@@ -85,16 +85,16 @@ func main() {
 		},
 	)
 
-	if err := puller.Init(*workers); err != nil {
-		panic(err)
-	}
-	defer puller.Close()
-
 	go func() {
 		if err := puller.Wait(); err != nil {
 			panic(err)
 		}
 	}()
+
+	if err := puller.Init(*workers); err != nil {
+		panic(err)
+	}
+	defer puller.Close()
 
 	arw := chunks.NewArbitraryReadWriterAt(srw, *chunkSize)
 
@@ -120,16 +120,16 @@ func main() {
 		nil,
 	)
 
-	if err := d.Open(); err != nil {
-		panic(err)
-	}
-	defer d.Close()
-
 	go func() {
 		if err := d.Wait(); err != nil {
 			panic(err)
 		}
 	}()
+
+	if err := d.Open(); err != nil {
+		panic(err)
+	}
+	defer d.Close()
 
 	cf, err := os.OpenFile(path, os.O_RDWR, os.ModePerm)
 	if err != nil {

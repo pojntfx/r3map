@@ -64,8 +64,7 @@ func (c *SyncedReadWriterAt) ReadAt(p []byte, off int64) (n int, err error) {
 		return 0, err
 	}
 
-	n, err = c.local.WriteAt(p, off)
-	if err != nil {
+	if _, err = c.local.WriteAt(p, off); err != nil {
 		return 0, err
 	}
 

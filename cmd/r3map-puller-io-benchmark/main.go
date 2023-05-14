@@ -69,6 +69,7 @@ func main() {
 	)
 
 	before := time.Now()
+
 	if err := puller.Init(*workers); err != nil {
 		panic(err)
 	}
@@ -77,6 +78,7 @@ func main() {
 	if err := puller.Wait(); err != nil {
 		panic(err)
 	}
+
 	after := time.Since(before)
 
 	if err := puller.Close(); err != nil {
