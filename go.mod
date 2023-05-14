@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/pojntfx/dudirekta v0.5.0
-	github.com/pojntfx/go-nbd v0.1.3
+	github.com/pojntfx/go-nbd v0.1.4
 )
 
 require (
