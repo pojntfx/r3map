@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"flag"
 	"fmt"
 	"io"
@@ -13,27 +12,19 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/pojntfx/r3map/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/chunks"
 	"github.com/pojntfx/r3map/pkg/device"
 	"github.com/pojntfx/r3map/pkg/utils"
 )
 
-func getHash(file io.Reader) ([]byte, error) {
-	hash := sha256.New()
-
-	if _, err := io.Copy(hash, file); err != nil {
-		return []byte{}, err
-	}
-
-	return hash.Sum(nil), nil
-}
-
 func main() {
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 	chunkCount := flag.Int64("chunk-count", 8192, "Amount of chunks to create")
 	workers := flag.Int64("workers", 1, "Puller workers to launch in the background")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
+	check := flag.Bool("check", true, "Check if local and remote hashes match")
 
 	flag.Parse()
 
@@ -163,27 +154,41 @@ func main() {
 		)
 	}()
 
+	outFile, err := os.CreateTemp("", "")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(outFile.Name())
+
 	before := time.Now()
 
-	localHash, err := getHash(bytes.NewReader(p))
-	if err != nil {
+	if _, err := io.Copy(outFile, bytes.NewReader(p)); err != nil {
 		panic(err)
 	}
 
 	after := time.Since(before)
 
-	if _, err := remoteFile.Seek(0, io.SeekStart); err != nil {
-		panic(err)
-	}
+	fmt.Printf("%.2f GB/s\n", float64(*chunkSize**chunkCount)/(1024*1024*1024)/after.Seconds())
 
-	remoteHash, err := getHash(remoteFile)
-	if err != nil {
-		panic(err)
-	}
+	if *check {
+		localHash := xxhash.New()
+		if _, err := io.Copy(localHash, bytes.NewReader(p)); err != nil {
+			panic(err)
+		}
 
-	if !bytes.Equal(remoteHash, localHash) {
-		panic("Remote and local hashes don't match")
-	}
+		if _, err := remoteFile.Seek(0, io.SeekStart); err != nil {
+			panic(err)
+		}
 
-	fmt.Printf("%.2f MB/s\n", float64(*chunkSize**chunkCount)/(1024*1024)/after.Seconds())
+		remoteHash := xxhash.New()
+		if _, err := io.Copy(remoteHash, remoteFile); err != nil {
+			panic(err)
+		}
+
+		if remoteHash.Sum64() != localHash.Sum64() {
+			panic("Remote and local hashes don't match")
+		}
+
+		fmt.Println("Remote and local hashes match.")
+	}
 }
