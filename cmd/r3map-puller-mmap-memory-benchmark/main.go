@@ -86,7 +86,7 @@ func allocateSlice(size int) ([]byte, func() error, error) {
 func main() {
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 	chunkCount := flag.Int64("chunk-count", 8192, "Amount of chunks to create")
-	workers := flag.Int64("workers", 10, "Puller workers to launch in the background; pass in 0 to disable preemptive pull")
+	workers := flag.Int64("workers", 512, "Puller workers to launch in the background; pass in 0 to disable preemptive pull")
 	completePull := flag.Bool("complete-pull", false, "Whether to completely pull the remote to the local slice before starting benchmark")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	check := flag.Bool("check", true, "Check if local and remote hashes match")
