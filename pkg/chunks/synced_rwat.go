@@ -68,6 +68,8 @@ func (c *SyncedReadWriterAt) ReadAt(p []byte, off int64) (n int, err error) {
 		return 0, err
 	}
 
+	chk.local = true
+
 	return n, nil
 }
 
