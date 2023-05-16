@@ -94,7 +94,17 @@ func TestSyncedReadWriterAt(t *testing.T) {
 			remote := NewChunkedReadWriterAt(remoteFile, tc.chunkSize, tc.chunks)
 			local := NewChunkedReadWriterAt(localFile, tc.chunkSize, tc.chunks)
 
-			srw := NewSyncedReadWriterAt(remote, local)
+			localOffsets := map[int64]struct{}{}
+
+			srw := NewSyncedReadWriterAt(
+				remote,
+				local,
+				func(off int64) error {
+					localOffsets[off] = struct{}{}
+
+					return nil
+				},
+			)
 
 			if tc.writeToRemoteFirst {
 				wn, werr := remote.WriteAt(tc.input, tc.offset)
@@ -138,6 +148,10 @@ func TestSyncedReadWriterAt(t *testing.T) {
 
 			if !bytes.Equal(localBuf, tc.input) {
 				t.Errorf("Data in local backend did not match expected. got %v, want %v", localBuf, tc.input)
+			}
+
+			if _, ok := localOffsets[tc.offset]; !ok {
+				t.Errorf("Chunk at offset %d not marked as local", tc.offset)
 			}
 		})
 	}

@@ -170,7 +170,9 @@ func TestPuller(t *testing.T) {
 
 			local := NewChunkedReadWriterAt(localFile, tc.chunkSize, tc.chunks)
 
-			srw := NewSyncedReadWriterAt(remote, local)
+			srw := NewSyncedReadWriterAt(remote, local, func(off int64) error {
+				return nil
+			})
 
 			ctx := context.Background()
 

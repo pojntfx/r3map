@@ -54,7 +54,9 @@ func main() {
 	remote := chunks.NewChunkedReadWriterAt(remoteFile, *chunkSize, *chunkCount)
 	local := chunks.NewChunkedReadWriterAt(localFile, *chunkSize, *chunkCount)
 
-	srw := chunks.NewSyncedReadWriterAt(remote, local)
+	srw := chunks.NewSyncedReadWriterAt(remote, local, func(off int64) error {
+		return nil
+	})
 
 	ctx := context.Background()
 
