@@ -62,7 +62,7 @@ func (c *SyncedReadWriterAt) ReadAt(p []byte, off int64) (n int, err error) {
 		return n, nil
 	}
 
-	// First fetch from local ReaderAt, then copy to local one
+	// First fetch from remote ReaderAt, then copy to local one
 	n, err = c.remote.ReadAt(p, off)
 	if err != nil {
 		return 0, err

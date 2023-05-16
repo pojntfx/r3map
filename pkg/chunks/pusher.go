@@ -2,63 +2,85 @@ package chunks
 
 import (
 	"context"
-	"io"
 	"sync"
 	"time"
 )
 
 type Pusher struct {
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	local               io.ReadWriterAt
-	remote              io.ReadWriterAt
-	chunkSize           int64
-	pushInterval        time.Duration
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	local  ReadWriterAt
+	remote ReadWriterAt
+
+	chunkSize int64
+
 	pushableOffsets     map[int64]struct{}
 	pushableOffsetsLock sync.Mutex
 	changedOffsets      map[int64]struct{}
 	changedOffsetsLock  sync.Mutex
-	ticker              *time.Ticker
-	workerWg            sync.WaitGroup
-	errChan             chan error
+
+	pushInterval time.Duration
+	pushTicker   *time.Ticker
+
+	workerWg sync.WaitGroup
+	errChan  chan error
 }
 
 func NewPusher(
 	ctx context.Context,
-	local, remote io.ReadWriterAt,
+	local, remote ReadWriterAt,
 	chunkSize int64,
 	pushInterval time.Duration,
 ) *Pusher {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Pusher{
-		ctx:             ctx,
-		cancel:          cancel,
-		local:           local,
-		remote:          remote,
-		chunkSize:       chunkSize,
-		pushInterval:    pushInterval,
+		ctx:    ctx,
+		cancel: cancel,
+
+		local:  local,
+		remote: remote,
+
+		chunkSize: chunkSize,
+
 		pushableOffsets: make(map[int64]struct{}),
 		changedOffsets:  make(map[int64]struct{}),
-		errChan:         make(chan error),
+
+		pushInterval: pushInterval,
+
+		errChan: make(chan error),
 	}
 }
 
 func (p *Pusher) Init() error {
-	p.ticker = time.NewTicker(p.pushInterval)
+	p.pushTicker = time.NewTicker(p.pushInterval)
+
 	go p.pushChunks()
+
+	return nil
+}
+
+func (p *Pusher) MarkOffsetPushable(off int64) error {
+	p.pushableOffsetsLock.Lock()
+	defer p.pushableOffsetsLock.Unlock()
+
+	p.pushableOffsets[off] = struct{}{}
+
 	return nil
 }
 
 func (p *Pusher) pushChunks() {
 	for {
 		select {
-		case <-p.ticker.C:
+		case <-p.pushTicker.C:
 			p.workerWg.Add(1)
-			err := p.Flush()
-			if err != nil {
+
+			if err := p.Flush(); err != nil {
 				p.errChan <- err
 			}
+
 			p.workerWg.Done()
+
 		case <-p.ctx.Done():
 			return
 		}
@@ -70,34 +92,61 @@ func (p *Pusher) Flush() error {
 	defer p.changedOffsetsLock.Unlock()
 
 	for off := range p.changedOffsets {
-		// read from local
-		buf := make([]byte, p.chunkSize)
-		_, err := p.local.ReadAt(buf, off)
-		if err != nil {
+		// First fetch from local ReaderAt, then copy to remote one
+		b := make([]byte, p.chunkSize)
+
+		if _, err := p.local.ReadAt(b, off); err != nil {
 			return err
 		}
 
-		// write to remote
-		_, err = p.remote.WriteAt(buf, off)
-		if err != nil {
+		if _, err := p.remote.WriteAt(b, off); err != nil {
 			return err
 		}
 
-		// remove offset from changedOffsets
 		delete(p.changedOffsets, off)
 	}
 
 	return nil
 }
 
-func (p *Pusher) MarkOffsetPushable(off int64) error {
-	p.pushableOffsetsLock.Lock()
-	defer p.pushableOffsetsLock.Unlock()
+func (p *Pusher) Wait() error {
+	for err := range p.errChan {
+		if err != nil {
+			_ = p.Close()
 
-	p.pushableOffsets[off] = struct{}{}
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *Pusher) Close() error {
+	p.Flush()
+
+	p.cancel()
+	p.pushTicker.Stop()
+	p.workerWg.Wait()
+
+	close(p.errChan)
+
 	return nil
 }
 
 func (p *Pusher) ReadAt(b []byte, off int64) (n int, err error) {
 	return p.local.ReadAt(b, off)
+}
+
+func (p *Pusher) WriteAt(b []byte, off int64) (n int, err error) {
+	p.pushableOffsetsLock.Lock()
+	_, ok := p.pushableOffsets[off]
+	p.pushableOffsetsLock.Unlock()
+
+	if ok {
+		p.changedOffsetsLock.Lock()
+		p.changedOffsets[off] = struct{}{}
+		p.changedOffsetsLock.Unlock()
+	}
+
+	return p.local.WriteAt(b, off)
 }
