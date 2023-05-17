@@ -37,7 +37,7 @@ func (rw *sliceRwat) ReadAt(p []byte, off int64) (n int, err error) {
 		return 0, io.EOF
 	}
 
-	n = copy(p, rw.data[off:])
+	n = copy(p, rw.data[off:off+int64(len(p))])
 
 	return n, nil
 }
@@ -51,7 +51,7 @@ func (rw *sliceRwat) WriteAt(p []byte, off int64) (n int, err error) {
 		return 0, io.ErrShortWrite
 	}
 
-	n = copy(rw.data[off:], p)
+	n = copy(rw.data[off:off+int64(len(p))], p)
 	if n < len(p) {
 		return n, io.ErrShortWrite
 	}
@@ -365,7 +365,7 @@ func main() {
 			return errors.New("remote, local, r3mapped and output hashes don't match")
 		}
 
-		fmt.Println("Remote, local, r3mapped and output hashes match.")
+		fmt.Println("Check: Remote, local, r3mapped and output hashes match.")
 
 		return nil
 	}
@@ -403,7 +403,7 @@ func main() {
 
 		afterFlush := time.Since(beforeFlush)
 
-		log.Printf("Flushed %v chunks in %v", n, afterFlush)
+		fmt.Printf("Flush: %v chunks in %v\n", n, afterFlush)
 
 		if *check {
 			if err := validateResults(); err != nil {
