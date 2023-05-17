@@ -17,14 +17,15 @@ type Pusher struct {
 
 	pushableOffsets     map[int64]struct{}
 	pushableOffsetsLock sync.Mutex
-	changedOffsets      map[int64]struct{}
+	changedOffsets      map[int64]*sync.Mutex
 	changedOffsetsLock  sync.Mutex
 
 	pushInterval time.Duration
 	pushTicker   *time.Ticker
 
-	workerWg sync.WaitGroup
-	errChan  chan error
+	workerWg  sync.WaitGroup
+	workerSem chan struct{}
+	errChan   chan error
 }
 
 func NewPusher(
@@ -44,7 +45,7 @@ func NewPusher(
 		chunkSize: chunkSize,
 
 		pushableOffsets: make(map[int64]struct{}),
-		changedOffsets:  make(map[int64]struct{}),
+		changedOffsets:  make(map[int64]*sync.Mutex),
 
 		pushInterval: pushInterval,
 
@@ -52,8 +53,10 @@ func NewPusher(
 	}
 }
 
-func (p *Pusher) Init() error {
+func (p *Pusher) Init(workers int64) error {
 	p.pushTicker = time.NewTicker(p.pushInterval)
+	p.workerSem = make(chan struct{}, workers)
+	p.errChan = make(chan error)
 
 	go p.pushChunks()
 
@@ -89,22 +92,53 @@ func (p *Pusher) pushChunks() {
 
 func (p *Pusher) Flush() error {
 	p.changedOffsetsLock.Lock()
-	defer p.changedOffsetsLock.Unlock()
 
-	for off := range p.changedOffsets {
-		// First fetch from local ReaderAt, then copy to remote one
-		b := make([]byte, p.chunkSize)
+	var wg sync.WaitGroup
 
-		if _, err := p.local.ReadAt(b, off); err != nil {
-			return err
-		}
+	for off, lock := range p.changedOffsets {
+		wg.Add(1)
 
-		if _, err := p.remote.WriteAt(b, off); err != nil {
-			return err
-		}
+		p.workerSem <- struct{}{}
 
-		delete(p.changedOffsets, off)
+		go func(off int64, lock *sync.Mutex) {
+			defer wg.Done()
+
+			lock.Lock()
+
+			// First fetch from local ReaderAt, then copy to remote one
+			b := make([]byte, p.chunkSize)
+
+			if _, err := p.local.ReadAt(b, off); err != nil {
+				lock.Unlock()
+
+				p.errChan <- err
+
+				<-p.workerSem
+
+				return
+			}
+
+			if _, err := p.remote.WriteAt(b, off); err != nil {
+				lock.Unlock()
+
+				p.errChan <- err
+
+				<-p.workerSem
+
+				return
+			}
+
+			delete(p.changedOffsets, off)
+
+			lock.Unlock()
+
+			<-p.workerSem
+		}(off, lock)
 	}
+
+	wg.Wait()
+
+	p.changedOffsetsLock.Unlock()
 
 	return nil
 }
@@ -144,8 +178,13 @@ func (p *Pusher) WriteAt(b []byte, off int64) (n int, err error) {
 
 	if ok {
 		p.changedOffsetsLock.Lock()
-		p.changedOffsets[off] = struct{}{}
+		if _, exists := p.changedOffsets[off]; !exists {
+			p.changedOffsets[off] = &sync.Mutex{}
+		}
 		p.changedOffsetsLock.Unlock()
+
+		p.changedOffsets[off].Lock()
+		defer p.changedOffsets[off].Unlock()
 	}
 
 	return p.local.WriteAt(b, off)

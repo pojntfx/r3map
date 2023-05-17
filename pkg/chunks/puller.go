@@ -12,7 +12,6 @@ type Puller struct {
 
 	chunkSize int64
 	chunks    int64
-	workers   int64
 
 	errChan chan error
 	ctx     context.Context
@@ -59,7 +58,6 @@ func NewPuller(
 }
 
 func (p *Puller) Init(workers int64) error {
-	p.workers = workers
 	for i := int64(0); i < workers; i++ {
 		p.workersWg.Add(1)
 

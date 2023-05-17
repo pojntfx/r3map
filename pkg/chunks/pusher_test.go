@@ -15,30 +15,70 @@ func TestPusher(t *testing.T) {
 		chunks              int64
 		pushPeriod          time.Duration
 		data                [][]byte
+		workers             int64
 		markOffsetsPushable bool
 	}{
 		{
-			name:                "Push 1 chunk",
+			name:                "Push 1 chunk with 1 worker",
 			chunkSize:           4,
 			chunks:              2,
 			pushPeriod:          time.Second,
 			data:                [][]byte{[]byte("test")},
+			workers:             1,
 			markOffsetsPushable: true,
 		},
 		{
-			name:                "Push 2 chunks",
+			name:                "Push 1 chunk with 2 workers",
+			chunkSize:           4,
+			chunks:              2,
+			pushPeriod:          time.Second,
+			data:                [][]byte{[]byte("test")},
+			workers:             2,
+			markOffsetsPushable: true,
+		},
+		{
+			name:                "Push 1 chunk with 10 workers",
+			chunkSize:           4,
+			chunks:              2,
+			pushPeriod:          time.Second,
+			data:                [][]byte{[]byte("test")},
+			workers:             2,
+			markOffsetsPushable: true,
+		},
+		{
+			name:                "Push 2 chunks with 1 worker",
 			chunkSize:           4,
 			chunks:              2,
 			pushPeriod:          time.Second,
 			data:                [][]byte{[]byte("test"), []byte("test")},
+			workers:             1,
 			markOffsetsPushable: true,
 		},
 		{
-			name:                "Do not push chunks without MarkOffsetPushable",
+			name:                "Push 2 chunks with 2 workers",
 			chunkSize:           4,
 			chunks:              2,
 			pushPeriod:          time.Second,
 			data:                [][]byte{[]byte("test"), []byte("test")},
+			workers:             2,
+			markOffsetsPushable: true,
+		},
+		{
+			name:                "Do not push chunks without MarkOffsetPushable with 1 worker",
+			chunkSize:           4,
+			chunks:              2,
+			pushPeriod:          time.Second,
+			data:                [][]byte{[]byte("test"), []byte("test")},
+			workers:             1,
+			markOffsetsPushable: false,
+		},
+		{
+			name:                "Do not push chunks without MarkOffsetPushable with 2 workers",
+			chunkSize:           4,
+			chunks:              2,
+			pushPeriod:          time.Second,
+			data:                [][]byte{[]byte("test"), []byte("test")},
+			workers:             2,
 			markOffsetsPushable: false,
 		},
 	}
@@ -76,7 +116,7 @@ func TestPusher(t *testing.T) {
 				tc.chunkSize,
 				tc.pushPeriod,
 			)
-			err = pusher.Init()
+			err = pusher.Init(tc.workers)
 			if err != nil {
 				t.Fatal(err)
 			}
