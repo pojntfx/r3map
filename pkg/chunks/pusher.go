@@ -95,9 +95,17 @@ func (p *Pusher) Flush() (int, error) {
 
 	n := len(p.changedOffsets)
 
-	var wg sync.WaitGroup
+	// Copy the offsets map; the goroutine changes it, and the iterator of the loop
+	// could access it during that, leading to a concurrent write and read
+	offsets := map[int64]*sync.Mutex{}
+	for key, value := range p.changedOffsets {
+		offsets[key] = value
+	}
 
-	for off, lock := range p.changedOffsets {
+	p.changedOffsetsLock.Unlock()
+
+	var wg sync.WaitGroup
+	for off, lock := range offsets {
 		wg.Add(1)
 
 		p.workerSem <- struct{}{}
@@ -130,7 +138,9 @@ func (p *Pusher) Flush() (int, error) {
 				return
 			}
 
+			p.changedOffsetsLock.Lock()
 			delete(p.changedOffsets, off)
+			p.changedOffsetsLock.Unlock()
 
 			lock.Unlock()
 
@@ -139,8 +149,6 @@ func (p *Pusher) Flush() (int, error) {
 	}
 
 	wg.Wait()
-
-	p.changedOffsetsLock.Unlock()
 
 	return n, nil
 }
@@ -158,7 +166,9 @@ func (p *Pusher) Wait() error {
 }
 
 func (p *Pusher) Close() error {
-	p.Flush()
+	if _, err := p.Flush(); err != nil {
+		return err
+	}
 
 	p.cancel()
 	p.pushTicker.Stop()
