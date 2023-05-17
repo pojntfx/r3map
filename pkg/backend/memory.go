@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"io"
 	"log"
 	"sync"
 )
@@ -22,6 +23,10 @@ func (b *MemoryBackend) ReadAt(p []byte, off int64) (n int, err error) {
 
 	b.lock.Lock()
 
+	if off >= int64(len(b.memory)) {
+		return 0, io.EOF
+	}
+
 	n = copy(p, b.memory[off:off+int64(len(p))])
 
 	b.lock.Unlock()
@@ -36,7 +41,15 @@ func (b *MemoryBackend) WriteAt(p []byte, off int64) (n int, err error) {
 
 	b.lock.Lock()
 
+	if off >= int64(len(b.memory)) {
+		return 0, io.EOF
+	}
+
 	n = copy(b.memory[off:off+int64(len(p))], p)
+
+	if n < len(p) {
+		return n, io.ErrShortWrite
+	}
 
 	b.lock.Unlock()
 
