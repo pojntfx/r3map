@@ -186,7 +186,7 @@ func main() {
 
 				after := time.Since(before)
 
-				log.Printf("Flushed %v chunks in %v", n, after)
+				log.Printf("Manually flushed %v chunks in %v", n, after)
 			}
 		}()
 
@@ -196,6 +196,12 @@ func main() {
 	}
 
 	srw := chunks.NewSyncedReadWriterAt(remote, local, func(off int64) error {
+		if *pushWorkers > 0 {
+			if err := local.(*chunks.Pusher).MarkOffsetPushable(off); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 
@@ -255,7 +261,9 @@ func main() {
 
 				afterFlush := time.Since(beforeFlush)
 
-				log.Printf("Flushed %v chunks in %v", n, afterFlush)
+				if *verbose {
+					log.Printf("Flushed %v chunks in %v", n, afterFlush)
+				}
 			}
 
 			return nil
