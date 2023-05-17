@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
+	"os/signal"
 	"syscall"
 	"time"
 	"unsafe"
@@ -86,14 +89,19 @@ func allocateSlice(size int) ([]byte, func() error, error) {
 func main() {
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 	chunkCount := flag.Int64("chunk-count", 8192, "Amount of chunks to create")
-	workers := flag.Int64("workers", 512, "Puller workers to launch in the background; pass in 0 to disable preemptive pull")
+	pullWorkers := flag.Int64("pull-workers", 512, "Puller workers to launch in the background; pass in 0 to disable preemptive pull")
+	pushWorkers := flag.Int64("push-workers", 512, "Push workers to launch in the background; pass in 0 to disable push")
 	completePull := flag.Bool("complete-pull", false, "Whether to completely pull the remote to the local slice before starting benchmark")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	check := flag.Bool("check", true, "Check if local and remote hashes match")
 	remoteRTT := flag.Duration("remote-rtt", 0, "Simulated RTT of the remote slice")
 	localRTT := flag.Duration("local-rtt", 0, "Simulated RTT of the local slice")
+	pusherInterval := flag.Duration("pusher-interval", 5*time.Minute, "Interval after which to push chunks to the remote")
 
 	flag.Parse()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// Create remote and local slices
 	remoteSlice, freeRemoteSlice, err := allocateSlice(int(*chunkSize * *chunkCount))
@@ -129,16 +137,63 @@ func main() {
 	defer df.Close()
 
 	remote := chunks.NewChunkedReadWriterAt(remoteFile, *chunkSize, *chunkCount)
-	local := chunks.NewChunkedReadWriterAt(localFile, *chunkSize, *chunkCount)
+
+	var local chunks.ReadWriterAt
+	if *pushWorkers > 0 {
+		l := chunks.NewChunkedReadWriterAt(localFile, *chunkSize, *chunkCount)
+
+		// Setup the pusher
+		pusher := chunks.NewPusher(
+			ctx,
+			l,
+			remote,
+			*chunkSize,
+			*pusherInterval,
+		)
+
+		go func() {
+			if err := pusher.Wait(); err != nil {
+				panic(err)
+			}
+		}()
+
+		if err := pusher.Init(*pushWorkers); err != nil {
+			panic(err)
+		}
+		defer pusher.Close()
+
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGHUP)
+		defer close(sigCh)
+
+		go func() {
+			for range sigCh {
+				before := time.Now()
+
+				n, err := pusher.Flush()
+				if err != nil {
+					log.Println("Could not flush:", err)
+
+					continue
+				}
+
+				after := time.Since(before)
+
+				log.Printf("Flushed %v chunks in %v", n, after)
+			}
+		}()
+
+		local = pusher
+	} else {
+		local = chunks.NewChunkedReadWriterAt(localFile, *chunkSize, *chunkCount)
+	}
 
 	srw := chunks.NewSyncedReadWriterAt(remote, local, func(off int64) error {
 		return nil
 	})
 
-	ctx := context.Background()
-
 	// Setup the puller
-	if *workers > 0 {
+	if *pullWorkers > 0 {
 		puller := chunks.NewPuller(
 			ctx,
 			srw,
@@ -157,7 +212,7 @@ func main() {
 			}()
 		}
 
-		if err := puller.Init(*workers); err != nil {
+		if err := puller.Init(*pullWorkers); err != nil {
 			panic(err)
 		}
 		defer puller.Close()
@@ -177,6 +232,19 @@ func main() {
 			return *chunkSize * *chunkCount, nil
 		},
 		func() error {
+			if *pushWorkers > 0 {
+				beforeFlush := time.Now()
+
+				n, err := local.(*chunks.Pusher).Flush()
+				if err != nil {
+					return err
+				}
+
+				afterFlush := time.Since(beforeFlush)
+
+				log.Printf("Flushed %v chunks in %v", n, afterFlush)
+			}
+
 			return nil
 		},
 		*verbose,
@@ -236,40 +304,84 @@ func main() {
 	defer freeOutputSlice()
 
 	// Run the benchmark
-	before := time.Now()
+	beforeRead := time.Now()
 
 	copy(outputSlice, r3mappedSlice)
 
-	after := time.Since(before)
+	afterRead := time.Since(beforeRead)
 
-	fmt.Printf("%.2f MB/s\n", float64(*chunkSize**chunkCount)/(1024*1024)/after.Seconds())
+	fmt.Printf("Read: %.2f MB/s\n", float64(*chunkSize**chunkCount)/(1024*1024)/afterRead.Seconds())
 
 	// Validate the results
-	if *check {
+	validateResults := func() error {
 		remoteHash := xxhash.New()
 		if _, err := io.Copy(remoteHash, bytes.NewReader(remoteSlice)); err != nil {
-			panic(err)
+			return err
 		}
 
 		localHash := xxhash.New()
 		if _, err := io.Copy(localHash, bytes.NewReader(localSlice)); err != nil {
-			panic(err)
+			return err
 		}
 
 		r3mappedHash := xxhash.New()
 		if _, err := io.Copy(r3mappedHash, bytes.NewReader(r3mappedSlice)); err != nil {
-			panic(err)
+			return err
 		}
 
 		outputHash := xxhash.New()
 		if _, err := io.Copy(outputHash, bytes.NewReader(outputSlice)); err != nil {
-			panic(err)
+			return err
 		}
 
 		if remoteHash.Sum64() != localHash.Sum64() {
-			panic("Remote, local, r3mapped and output hashes don't match")
+			return errors.New("remote, local, r3mapped and output hashes don't match")
 		}
 
 		fmt.Println("Remote, local, r3mapped and output hashes match.")
+
+		return nil
+	}
+
+	if *check {
+		if err := validateResults(); err != nil {
+			panic(err)
+		}
+	}
+
+	beforeWrite := time.Now()
+
+	if _, err := rand.Read(r3mappedSlice); err != nil {
+		panic(err)
+	}
+
+	_, _, _ = syscall.Syscall(
+		syscall.SYS_MSYNC,
+		uintptr(unsafe.Pointer(&r3mappedSlice[0])),
+		uintptr(len(r3mappedSlice)),
+		uintptr(syscall.MS_SYNC),
+	)
+
+	afterWrite := time.Since(beforeWrite)
+
+	fmt.Printf("Write: %.2f MB/s\n", float64(*chunkSize**chunkCount)/(1024*1024)/afterWrite.Seconds())
+
+	if *pushWorkers > 0 {
+		beforeFlush := time.Now()
+
+		n, err := local.(*chunks.Pusher).Flush()
+		if err != nil {
+			panic(err)
+		}
+
+		afterFlush := time.Since(beforeFlush)
+
+		log.Printf("Flushed %v chunks in %v", n, afterFlush)
+
+		if *check {
+			if err := validateResults(); err != nil {
+				panic(err)
+			}
+		}
 	}
 }
