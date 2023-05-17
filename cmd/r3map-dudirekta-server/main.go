@@ -14,7 +14,7 @@ import (
 
 func main() {
 	laddr := flag.String("addr", ":1337", "Listen address")
-	size := flag.Int64("size", 1073741824, "Size of the memory region to expose")
+	size := flag.Int64("size", 4096*8192, "Size of the memory region to expose")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
 	flag.Parse()
