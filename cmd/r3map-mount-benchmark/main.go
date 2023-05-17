@@ -131,17 +131,17 @@ func main() {
 
 	fmt.Printf("Write throughput: %.2f MB/s\n", float64(*size)/(1024*1024)/afterWrite.Seconds())
 
-	beforeSync := time.Now()
+	if *check && *pushWorkers > 0 {
+		beforeSync := time.Now()
 
-	if err := mount.Sync(); err != nil {
-		panic(err)
-	}
+		if err := mount.Sync(); err != nil {
+			panic(err)
+		}
 
-	afterSync := time.Since(beforeSync)
+		afterSync := time.Since(beforeSync)
 
-	fmt.Printf("Sync: %v\n", afterSync)
+		fmt.Printf("Sync: %v\n", afterSync)
 
-	if *check {
 		if err := validate(out); err != nil {
 			panic(err)
 		}
