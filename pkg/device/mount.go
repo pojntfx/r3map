@@ -35,8 +35,6 @@ type Mount struct {
 	local,
 	syncer backend.Backend
 
-	getLocal func(size int64) (backend.Backend, error)
-
 	mountOptions *MountOptions
 
 	serverOptions *server.Options
@@ -47,7 +45,9 @@ type Mount struct {
 	puller     *chunks.Puller
 	dev        *Device
 	clientFile *os.File
-	mount      *[]byte
+
+	mount     []byte
+	mmapMount sync.Mutex
 
 	wg   sync.WaitGroup
 	errs chan error
@@ -57,24 +57,37 @@ func NewMount(
 	ctx context.Context,
 
 	remote backend.Backend,
-	getLocal func(size int64) (backend.Backend, error),
+	local backend.Backend,
 
 	mountOptions *MountOptions,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
 ) *Mount {
+	if mountOptions == nil {
+		mountOptions = &MountOptions{}
+	}
+
+	if mountOptions.ChunkSize <= 0 {
+		mountOptions.ChunkSize = 4096
+	}
+
+	if mountOptions.PushInterval == 0 {
+		mountOptions.PushInterval = time.Second * 20
+	}
+
 	return &Mount{
 		ctx: ctx,
 
 		remote: remote,
-
-		getLocal: getLocal,
+		local:  local,
 
 		mountOptions: mountOptions,
 
 		serverOptions: serverOptions,
 		clientOptions: clientOptions,
+
+		errs: make(chan error),
 	}
 }
 
@@ -101,11 +114,6 @@ func (m *Mount) Open() ([]byte, error) {
 	}
 
 	m.serverFile, err = os.Open(devicePath)
-	if err != nil {
-		return []byte{}, err
-	}
-
-	m.local, err = m.getLocal(size)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -193,16 +201,20 @@ func (m *Mount) Open() ([]byte, error) {
 			return size, nil
 		},
 		func() error {
+			m.mmapMount.Lock()
 			if m.mount != nil {
 				if _, _, err := syscall.Syscall(
 					syscall.SYS_MSYNC,
-					uintptr(unsafe.Pointer(&(*m.mount)[0])),
-					uintptr(len(*m.mount)),
+					uintptr(unsafe.Pointer(&m.mount[0])),
+					uintptr(len(m.mount)),
 					uintptr(syscall.MS_SYNC),
 				); err != 0 {
+					m.mmapMount.Unlock()
+
 					return err
 				}
 			}
+			m.mmapMount.Unlock()
 
 			// We only ever touch the remote if we want to push
 			if m.mountOptions.PushWorkers > 0 {
@@ -253,7 +265,7 @@ func (m *Mount) Open() ([]byte, error) {
 		return []byte{}, err
 	}
 
-	mount, err := syscall.Mmap(
+	m.mount, err = syscall.Mmap(
 		int(m.clientFile.Fd()),
 		0,
 		int(size),
@@ -263,29 +275,13 @@ func (m *Mount) Open() ([]byte, error) {
 	if err != nil {
 		return []byte{}, err
 	}
-	m.mount = &mount
 
-	return mount, nil
+	return m.mount, nil
 }
 
 func (m *Mount) Close() error {
 	if m.syncer != nil {
-		if err := m.Sync(); err != nil {
-			return err
-		}
-	}
-
-	m.wg.Wait()
-
-	if m.mount != nil {
-		_, _, _ = syscall.Syscall(
-			syscall.SYS_MSYNC,
-			uintptr(unsafe.Pointer(&(*m.mount)[0])),
-			uintptr(len(*m.mount)),
-			uintptr(syscall.MS_SYNC),
-		)
-
-		_ = syscall.Munmap(*m.mount)
+		_ = m.syncer.Sync()
 	}
 
 	if m.clientFile != nil {
@@ -295,6 +291,14 @@ func (m *Mount) Close() error {
 	if m.dev != nil {
 		_ = m.dev.Close()
 	}
+
+	m.mmapMount.Lock()
+	if m.mount != nil {
+		_ = syscall.Munmap(m.mount)
+
+		m.mount = nil
+	}
+	m.mmapMount.Unlock()
 
 	if m.puller != nil {
 		_ = m.puller.Close()
@@ -307,6 +311,8 @@ func (m *Mount) Close() error {
 	if m.serverFile != nil {
 		_ = m.serverFile.Close()
 	}
+
+	m.wg.Wait()
 
 	close(m.errs)
 
