@@ -72,7 +72,7 @@ func main() {
 
 	before := time.Now()
 
-	if err := puller.Init(*workers); err != nil {
+	if err := puller.Open(*workers); err != nil {
 		panic(err)
 	}
 	defer puller.Close()

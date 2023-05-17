@@ -183,7 +183,7 @@ func TestPuller(t *testing.T) {
 				tc.chunks,
 				tc.pullPriority,
 			)
-			err = puller.Init(tc.workers)
+			err = puller.Open(tc.workers)
 			if err != nil {
 				t.Fatal(err)
 			}

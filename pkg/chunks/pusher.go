@@ -53,7 +53,7 @@ func NewPusher(
 	}
 }
 
-func (p *Pusher) Init(workers int64) error {
+func (p *Pusher) Open(workers int64) error {
 	p.pushTicker = time.NewTicker(p.pushInterval)
 	p.workerSem = make(chan struct{}, workers)
 	p.errChan = make(chan error)

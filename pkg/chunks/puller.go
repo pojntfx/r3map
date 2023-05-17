@@ -57,7 +57,7 @@ func NewPuller(
 	}
 }
 
-func (p *Puller) Init(workers int64) error {
+func (p *Puller) Open(workers int64) error {
 	for i := int64(0); i < workers; i++ {
 		p.workersWg.Add(1)
 

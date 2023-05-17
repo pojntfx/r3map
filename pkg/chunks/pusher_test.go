@@ -116,7 +116,7 @@ func TestPusher(t *testing.T) {
 				tc.chunkSize,
 				tc.pushPeriod,
 			)
-			err = pusher.Init(tc.workers)
+			err = pusher.Open(tc.workers)
 			if err != nil {
 				t.Fatal(err)
 			}

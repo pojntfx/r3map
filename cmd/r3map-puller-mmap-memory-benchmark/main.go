@@ -164,7 +164,7 @@ func main() {
 			}
 		}()
 
-		if err := pusher.Init(*pushWorkers); err != nil {
+		if err := pusher.Open(*pushWorkers); err != nil {
 			panic(err)
 		}
 		defer pusher.Close()
@@ -231,7 +231,7 @@ func main() {
 			}()
 		}
 
-		if err := puller.Init(*pullWorkers); err != nil {
+		if err := puller.Open(*pullWorkers); err != nil {
 			panic(err)
 		}
 		defer puller.Close()
