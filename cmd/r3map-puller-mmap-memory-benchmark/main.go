@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 	"unsafe"
@@ -125,7 +126,7 @@ func main() {
 	localFile := &sliceRwat{localSlice, *localRTT}
 
 	// Setup the device
-	path, err := utils.FindUnusedNBDDevice()
+	path, err := utils.FindUnusedNBDDevice(time.Millisecond * 50)
 	if err != nil {
 		panic(err)
 	}
@@ -153,7 +154,13 @@ func main() {
 
 		go func() {
 			if err := pusher.Wait(); err != nil {
-				panic(err)
+				log.Println("Fatal error while waiting on pusher:", err)
+
+				if *verbose {
+					debug.PrintStack()
+				}
+
+				os.Exit(1)
 			}
 		}()
 
@@ -207,7 +214,13 @@ func main() {
 		if !*completePull {
 			go func() {
 				if err := puller.Wait(); err != nil {
-					panic(err)
+					log.Println("Fatal error while waiting on puller:", err)
+
+					if *verbose {
+						debug.PrintStack()
+					}
+
+					os.Exit(1)
 				}
 			}()
 		}
@@ -260,7 +273,13 @@ func main() {
 
 	go func() {
 		if err := d.Wait(); err != nil {
-			panic(err)
+			log.Println("Fatal error while waiting on device:", err)
+
+			if *verbose {
+				debug.PrintStack()
+			}
+
+			os.Exit(1)
 		}
 	}()
 

@@ -70,7 +70,7 @@ func main() {
 				switch line {
 				case "a\n":
 					if err := func() error {
-						path, err := utils.FindUnusedNBDDevice()
+						path, err := utils.FindUnusedNBDDevice(time.Millisecond * 50)
 						if err != nil {
 							return err
 						}

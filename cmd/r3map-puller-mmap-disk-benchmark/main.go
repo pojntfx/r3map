@@ -48,7 +48,7 @@ func main() {
 		panic(err)
 	}
 
-	path, err := utils.FindUnusedNBDDevice()
+	path, err := utils.FindUnusedNBDDevice(time.Millisecond * 50)
 	if err != nil {
 		panic(err)
 	}
