@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/pojntfx/dudirekta v0.5.0
-	github.com/pojntfx/go-nbd v0.1.7
+	github.com/pojntfx/go-nbd v0.1.8
 )
 
 require (
