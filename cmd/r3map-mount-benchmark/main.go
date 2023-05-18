@@ -70,11 +70,25 @@ func main() {
 		}
 	}()
 
+	beforeOpen := time.Now()
+
 	b, err := mount.Open()
 	if err != nil {
 		panic(err)
 	}
-	defer mount.Close()
+	defer func() {
+		beforeClose := time.Now()
+
+		_ = mount.Close()
+
+		afterClose := time.Since(beforeClose)
+
+		fmt.Printf("Close: %v\n", afterClose)
+	}()
+
+	afterOpen := time.Since(beforeOpen)
+
+	fmt.Printf("Open: %v\n", afterOpen)
 
 	beforeRead := time.Now()
 
