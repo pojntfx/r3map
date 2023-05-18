@@ -4,9 +4,7 @@ import (
 	"context"
 	"os"
 	"sync"
-	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
@@ -28,6 +26,13 @@ type MountOptions struct {
 	Verbose bool
 }
 
+type MountHooks struct {
+	OnBeforeSync func() error
+
+	OnBeforeClose func() error
+	OnAfterClose  func() error
+}
+
 type Mount struct {
 	ctx context.Context
 
@@ -36,6 +41,7 @@ type Mount struct {
 	syncer backend.Backend
 
 	mountOptions *MountOptions
+	mountHooks   *MountHooks
 
 	serverOptions *server.Options
 	clientOptions *client.Options
@@ -44,10 +50,6 @@ type Mount struct {
 	pusher     *chunks.Pusher
 	puller     *chunks.Puller
 	dev        *Device
-	clientFile *os.File
-
-	mount     []byte
-	mmapMount sync.Mutex
 
 	wg   sync.WaitGroup
 	errs chan error
@@ -60,6 +62,7 @@ func NewMount(
 	local backend.Backend,
 
 	mountOptions *MountOptions,
+	mountHooks *MountHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
@@ -76,6 +79,10 @@ func NewMount(
 		mountOptions.PushInterval = time.Second * 20
 	}
 
+	if mountHooks == nil {
+		mountHooks = &MountHooks{}
+	}
+
 	return &Mount{
 		ctx: ctx,
 
@@ -83,6 +90,7 @@ func NewMount(
 		local:  local,
 
 		mountOptions: mountOptions,
+		mountHooks:   mountHooks,
 
 		serverOptions: serverOptions,
 		clientOptions: clientOptions,
@@ -101,21 +109,21 @@ func (m *Mount) Wait() error {
 	return nil
 }
 
-func (m *Mount) Open() ([]byte, error) {
+func (m *Mount) Open() (string, int64, error) {
 	size, err := m.remote.Size()
 	if err != nil {
-		return []byte{}, err
+		return "", 0, err
 	}
 	chunkCount := size / m.mountOptions.ChunkSize
 
 	devicePath, err := utils.FindUnusedNBDDevice(time.Millisecond * 50)
 	if err != nil {
-		return []byte{}, err
+		return "", 0, err
 	}
 
 	m.serverFile, err = os.Open(devicePath)
 	if err != nil {
-		return []byte{}, err
+		return "", 0, err
 	}
 
 	var local chunks.ReadWriterAt
@@ -140,7 +148,7 @@ func (m *Mount) Open() ([]byte, error) {
 		}()
 
 		if err := m.pusher.Open(m.mountOptions.PushWorkers); err != nil {
-			return []byte{}, err
+			return "", 0, err
 		}
 
 		local = m.pusher
@@ -183,12 +191,12 @@ func (m *Mount) Open() ([]byte, error) {
 		}
 
 		if err := m.puller.Open(m.mountOptions.PullWorkers); err != nil {
-			return []byte{}, err
+			return "", 0, err
 		}
 
 		if m.mountOptions.PullFirst {
 			if err := m.puller.Wait(); err != nil {
-				return []byte{}, err
+				return "", 0, err
 			}
 		}
 	}
@@ -201,20 +209,11 @@ func (m *Mount) Open() ([]byte, error) {
 			return size, nil
 		},
 		func() error {
-			m.mmapMount.Lock()
-			if m.mount != nil {
-				if _, _, err := syscall.Syscall(
-					syscall.SYS_MSYNC,
-					uintptr(unsafe.Pointer(&m.mount[0])),
-					uintptr(len(m.mount)),
-					uintptr(syscall.MS_SYNC),
-				); err != 0 {
-					m.mmapMount.Unlock()
-
+			if hook := m.mountHooks.OnBeforeSync; hook != nil {
+				if err := hook(); err != nil {
 					return err
 				}
 			}
-			m.mmapMount.Unlock()
 
 			// We only ever touch the remote if we want to push
 			if m.mountOptions.PushWorkers > 0 {
@@ -257,26 +256,10 @@ func (m *Mount) Open() ([]byte, error) {
 	}()
 
 	if err := m.dev.Open(); err != nil {
-		return []byte{}, err
+		return "", 0, err
 	}
 
-	m.clientFile, err = os.OpenFile(devicePath, os.O_RDWR, os.ModePerm)
-	if err != nil {
-		return []byte{}, err
-	}
-
-	m.mount, err = syscall.Mmap(
-		int(m.clientFile.Fd()),
-		0,
-		int(size),
-		syscall.PROT_READ|syscall.PROT_WRITE,
-		syscall.MAP_SHARED,
-	)
-	if err != nil {
-		return []byte{}, err
-	}
-
-	return m.mount, nil
+	return devicePath, size, nil
 }
 
 func (m *Mount) Close() error {
@@ -284,21 +267,21 @@ func (m *Mount) Close() error {
 		_ = m.syncer.Sync()
 	}
 
-	if m.clientFile != nil {
-		_ = m.clientFile.Close()
+	if hook := m.mountHooks.OnBeforeClose; hook != nil {
+		if err := hook(); err != nil {
+			return err
+		}
 	}
 
 	if m.dev != nil {
 		_ = m.dev.Close()
 	}
 
-	m.mmapMount.Lock()
-	if m.mount != nil {
-		_ = syscall.Munmap(m.mount)
-
-		m.mount = nil
+	if hook := m.mountHooks.OnAfterClose; hook != nil {
+		if err := hook(); err != nil {
+			return err
+		}
 	}
-	m.mmapMount.Unlock()
 
 	if m.puller != nil {
 		_ = m.puller.Close()

@@ -42,7 +42,7 @@ func main() {
 		panic(err)
 	}
 
-	mount := device.NewMount(
+	mount := device.NewSliceMount(
 		ctx,
 
 		remote,
@@ -72,7 +72,7 @@ func main() {
 
 	beforeOpen := time.Now()
 
-	b, err := mount.Open()
+	mountedSlice, err := mount.Open()
 	if err != nil {
 		panic(err)
 	}
@@ -92,8 +92,8 @@ func main() {
 
 	beforeRead := time.Now()
 
-	out := make([]byte, *size)
-	copy(out, b)
+	output := make([]byte, *size)
+	copy(output, mountedSlice)
 
 	afterRead := time.Since(beforeRead)
 
@@ -111,7 +111,7 @@ func main() {
 		}
 
 		mountedHash := xxhash.New()
-		if _, err := io.Copy(mountedHash, bytes.NewReader(b)); err != nil {
+		if _, err := io.Copy(mountedHash, bytes.NewReader(mountedSlice)); err != nil {
 			return err
 		}
 
@@ -128,7 +128,7 @@ func main() {
 	}
 
 	if *check {
-		if err := validate(out); err != nil {
+		if err := validate(output); err != nil {
 			panic(err)
 		}
 
@@ -137,7 +137,7 @@ func main() {
 
 	beforeWrite := time.Now()
 
-	if _, err := rand.Read(b); err != nil {
+	if _, err := rand.Read(mountedSlice); err != nil {
 		panic(err)
 	}
 
@@ -156,7 +156,7 @@ func main() {
 
 		fmt.Printf("Sync: %v\n", afterSync)
 
-		if err := validate(out); err != nil {
+		if err := validate(output); err != nil {
 			panic(err)
 		}
 
