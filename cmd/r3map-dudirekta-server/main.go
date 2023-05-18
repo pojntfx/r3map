@@ -18,7 +18,7 @@ func main() {
 	laddr := flag.String("addr", ":1337", "Listen address")
 
 	memory := flag.Bool("memory", false, "Whether to use memory instead of file-based backend")
-	memorySize := flag.Int64("memory-size", 4096*8192, "Size of the memory region to expose (ignored if file-based backend is used)")
+	size := flag.Int64("size", 4096*8192, "Size of the memory region to expose (ignored if file-based backend is used)")
 
 	file := flag.String("file", "disk.img", "Path to file to expose (ignored if memory-based backend is used)")
 
@@ -31,7 +31,7 @@ func main() {
 
 	var b backend.Backend
 	if *memory {
-		b = backend.NewMemoryBackend(make([]byte, *memorySize))
+		b = backend.NewMemoryBackend(make([]byte, *size))
 	} else {
 		file, err := os.OpenFile(*file, os.O_RDWR, os.ModeAppend)
 		if err != nil {

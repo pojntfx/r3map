@@ -35,7 +35,7 @@ var (
 )
 
 func main() {
-	s := flag.Int64("size", 4096*8192, "Size of the memory region or file to allocate (ignored if a dudirekta remote is used)")
+	s := flag.Int64("size", 4096*8192, "Size of the memory region, file to allocate or to size assume in case of the dudirekta remote")
 
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 
@@ -179,11 +179,7 @@ func main() {
 		}
 	}
 
-	size, err := remote.Size()
-	if err != nil {
-		panic(err)
-	}
-	size = (size / *chunkSize) * *chunkSize
+	size := (*s / *chunkSize) * *chunkSize
 
 	if _, err := io.CopyN(io.NewOffsetWriter(remote, 0), rand.Reader, size); err != nil {
 		panic(err)
@@ -294,7 +290,7 @@ func main() {
 
 	beforeRead := time.Now()
 
-	if _, err := io.Copy(io.NewOffsetWriter(output, 0), mountedReader); err != nil {
+	if _, err := io.CopyN(io.NewOffsetWriter(output, 0), mountedReader, size); err != nil {
 		panic(err)
 	}
 
