@@ -8,14 +8,13 @@ import (
 	"time"
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
-	"github.com/pojntfx/r3map/pkg/backend"
+	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/services"
 )
 
 func main() {
 	laddr := flag.String("addr", ":1337", "Listen address")
 	size := flag.Int64("size", 4096*8192, "Size of the memory region to expose")
-	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
 	flag.Parse()
 
@@ -25,7 +24,7 @@ func main() {
 	clients := 0
 
 	registry := rpc.NewRegistry(
-		services.NewBackend(backend.NewMemoryBackend(make([]byte, *size), *verbose)),
+		services.NewBackend(backend.NewMemoryBackend(make([]byte, *size))),
 		struct{}{},
 
 		time.Second*10,

@@ -9,7 +9,7 @@ github.com/pilebones/go-udev v0.9.0 h1:N1uEO/SxUwtIctc0WLU0t69JeBxIYEYnj8lT/Nabl
 github.com/pilebones/go-udev v0.9.0/go.mod h1:T2eI2tUSK0hA2WS5QLjXJUfQkluZQu+18Cqvem3CaXI=
 github.com/pojntfx/dudirekta v0.5.0 h1:oI6uHA0wCVwyLKamt5ECcHyXvgqcEdV83KdDEjnBUYw=
 github.com/pojntfx/dudirekta v0.5.0/go.mod h1:2G79XDOe1c3Nz3G+LQfiNZ5K/SS3b2TP1K9JyRt8woI=
-github.com/pojntfx/go-nbd v0.1.6 h1:K0xoo3mgatZFxTmEP88wpfdRFLWFJPlGugZM2nH5Jkw=
-github.com/pojntfx/go-nbd v0.1.6/go.mod h1:SehHnbi2e8NiSAKby42Itm8SIoS7b+wAprsfPH3qgYk=
+github.com/pojntfx/go-nbd v0.1.7 h1:PzcqHOK3Nj6rUDayPs6VVNP2CyQEqRc2rAPw68TMmYo=
+github.com/pojntfx/go-nbd v0.1.7/go.mod h1:SehHnbi2e8NiSAKby42Itm8SIoS7b+wAprsfPH3qgYk=
 github.com/teivah/broadcast v0.1.0 h1:UMs1tn8w20Xlnod+VbLbwH3dzEH2zfJy4lxdzZjQLL0=
 github.com/teivah/broadcast v0.1.0/go.mod h1:mXEgvXdYz2xUkQFARxI+jyX1MfCBwMDiGjIKSAsEq1g=
