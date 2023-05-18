@@ -11,6 +11,7 @@ import (
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/services"
+	"github.com/pojntfx/r3map/pkg/utils"
 )
 
 func main() {
@@ -35,6 +36,8 @@ func main() {
 			panic(err)
 		}
 		defer file.Close()
+
+		b = backend.NewFileBackend(file)
 	}
 
 	clients := 0
@@ -83,7 +86,9 @@ func main() {
 					_ = conn.Close()
 
 					if err := recover(); err != nil {
-						log.Printf("Client disconnected with error: %v", err)
+						if !utils.IsClosedErr(err.(error)) {
+							log.Printf("Client disconnected with error: %v", err)
+						}
 					}
 				}()
 

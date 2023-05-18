@@ -8,21 +8,30 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
+	lbackend "github.com/pojntfx/r3map/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/frontend"
+	"github.com/pojntfx/r3map/pkg/services"
+	"github.com/pojntfx/r3map/pkg/utils"
 )
 
 const (
-	backendTypeMemory = "memory"
-	backendTypeFile   = "file"
+	backendTypeFile      = "file"
+	backendTypeMemory    = "memory"
+	backendTypeDudirekta = "dudirekta"
 )
 
 var (
+	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDudirekta}
+
 	errUnknownBackend = errors.New("unknown backend")
+	errNoPeerFound    = errors.New("no peer found")
 )
 
 func main() {
@@ -41,34 +50,31 @@ func main() {
 		backendTypeFile,
 		fmt.Sprintf(
 			"Local backend to use (one of %v)",
-			[]string{
-				backendTypeMemory,
-				backendTypeFile,
-			},
+			knownBackendTypes,
 		),
 	)
+	localRaddr := flag.String("local-raddr", "localhost:1337", "Local backend's remote address (ignored if local backend isn't a dudirekta backend)")
+
 	remoteBackend := flag.String(
 		"remote-backend",
 		backendTypeFile,
 		fmt.Sprintf(
 			"Remote backend to use (one of %v)",
-			[]string{
-				backendTypeMemory,
-				backendTypeFile,
-			},
+			knownBackendTypes,
 		),
 	)
+	remoteRaddr := flag.String("remote-raddr", "localhost:1338", "Remote backend's remote address (ignored if remote backend isn't a dudirekta backend)")
+
 	outputBackend := flag.String(
 		"output-backend",
 		backendTypeFile,
 		fmt.Sprintf(
 			"Output backend to use (one of %v)",
-			[]string{
-				backendTypeMemory,
-				backendTypeFile,
-			},
+			knownBackendTypes,
 		),
 	)
+	outputRaddr := flag.String("output-raddr", "localhost:1339", "Output backend's remote address (ignored if output backend isn't a dudirekta backend)")
+
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 
 	check := flag.Bool("check", true, "Whether to check read and write results against expected data")
@@ -88,18 +94,22 @@ func main() {
 	for _, config := range []struct {
 		backendInstance *backend.Backend
 		backendType     string
+		backendRaddr    string
 	}{
 		{
 			&local,
 			*localBackend,
+			*localRaddr,
 		},
 		{
 			&remote,
 			*remoteBackend,
+			*remoteRaddr,
 		},
 		{
 			&output,
 			*outputBackend,
+			*outputRaddr,
 		},
 	} {
 		switch config.backendType {
@@ -118,6 +128,51 @@ func main() {
 			}
 
 			*config.backendInstance = backend.NewFileBackend(file)
+
+		case backendTypeDudirekta:
+			ready := make(chan struct{})
+			registry := rpc.NewRegistry(
+				&struct{}{},
+				services.BackendRemote{},
+
+				time.Second*10,
+				ctx,
+				&rpc.Options{
+					ResponseBufferLen: rpc.DefaultResponseBufferLen,
+					OnClientConnect: func(remoteID string) {
+						ready <- struct{}{}
+					},
+				},
+			)
+
+			conn, err := net.Dial("tcp", config.backendRaddr)
+			if err != nil {
+				panic(err)
+			}
+			defer conn.Close()
+
+			go func() {
+				if err := registry.Link(conn); err != nil {
+					if !utils.IsClosedErr(err) {
+						panic(err)
+					}
+				}
+			}()
+
+			<-ready
+
+			var peer *services.BackendRemote
+			for _, candidate := range registry.Peers() {
+				peer = &candidate
+
+				break
+			}
+
+			if peer == nil {
+				panic(errNoPeerFound)
+			}
+
+			*config.backendInstance = lbackend.NewRPCBackend(ctx, *peer, false)
 
 		default:
 			panic(errUnknownBackend)
