@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
@@ -14,17 +15,32 @@ import (
 
 func main() {
 	laddr := flag.String("addr", ":1337", "Listen address")
-	size := flag.Int64("size", 4096*8192, "Size of the memory region to expose")
+
+	memory := flag.Bool("memory", false, "Whether to use memory instead of file-based backend")
+	memorySize := flag.Int64("memory-size", 4096*8192, "Size of the memory region to expose (ignored if file-based backend is used)")
+
+	file := flag.String("file", "disk.img", "Path to file to expose (ignored if memory-based backend is used)")
 
 	flag.Parse()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	var b backend.Backend
+	if *memory {
+		b = backend.NewMemoryBackend(make([]byte, *memorySize))
+	} else {
+		file, err := os.OpenFile(*file, os.O_RDWR, os.ModeAppend)
+		if err != nil {
+			panic(err)
+		}
+		defer file.Close()
+	}
+
 	clients := 0
 
 	registry := rpc.NewRegistry(
-		services.NewBackend(backend.NewMemoryBackend(make([]byte, *size))),
+		services.NewBackend(b),
 		struct{}{},
 
 		time.Second*10,

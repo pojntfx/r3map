@@ -13,11 +13,20 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/pojntfx/go-nbd/pkg/backend"
-	"github.com/pojntfx/r3map/pkg/device"
+	"github.com/pojntfx/r3map/pkg/frontend"
+)
+
+const (
+	backendTypeMemory = "memory"
+	backendTypeFile   = "file"
+)
+
+var (
+	errUnknownBackend = errors.New("unknown backend")
 )
 
 func main() {
-	size := flag.Int64("size", 4096*8192, "Size of the memory region to allocate")
+	s := flag.Int64("size", 4096*8192, "Size of the memory region or file to allocate (ignored if a dudirekta remote is used)")
 
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 
@@ -27,10 +36,42 @@ func main() {
 	pushWorkers := flag.Int64("push-workers", 512, "Push workers to launch in the background; pass in 0 to disable push")
 	pushInterval := flag.Duration("push-interval", 5*time.Minute, "Interval after which to push changed chunks to the remote")
 
-	check := flag.Bool("check", true, "Whether to check read and write results against expected data")
-	memory := flag.Bool("memory", false, "Whether to use a memory instead of file-based local and remote")
-	slice := flag.Bool("slice", false, "Whether to use the slice instead of the file backend for the test")
+	localBackend := flag.String(
+		"local-backend",
+		backendTypeFile,
+		fmt.Sprintf(
+			"Local backend to use (one of %v)",
+			[]string{
+				backendTypeMemory,
+				backendTypeFile,
+			},
+		),
+	)
+	remoteBackend := flag.String(
+		"remote-backend",
+		backendTypeFile,
+		fmt.Sprintf(
+			"Remote backend to use (one of %v)",
+			[]string{
+				backendTypeMemory,
+				backendTypeFile,
+			},
+		),
+	)
+	outputBackend := flag.String(
+		"output-backend",
+		backendTypeFile,
+		fmt.Sprintf(
+			"Output backend to use (one of %v)",
+			[]string{
+				backendTypeMemory,
+				backendTypeFile,
+			},
+		),
+	)
+	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 
+	check := flag.Bool("check", true, "Whether to check read and write results against expected data")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
 	flag.Parse()
@@ -39,39 +80,57 @@ func main() {
 	defer cancel()
 
 	var (
-		remote backend.Backend
 		local  backend.Backend
+		remote backend.Backend
+		output backend.Backend
 	)
 
-	if *memory {
-		remote = backend.NewMemoryBackend(make([]byte, *size))
-		local = backend.NewMemoryBackend(make([]byte, *size))
-	} else {
-		remoteFile, err := os.CreateTemp("", "")
-		if err != nil {
-			panic(err)
-		}
-		defer os.RemoveAll(remoteFile.Name())
+	for _, config := range []struct {
+		backendInstance *backend.Backend
+		backendType     string
+	}{
+		{
+			&local,
+			*localBackend,
+		},
+		{
+			&remote,
+			*remoteBackend,
+		},
+		{
+			&output,
+			*outputBackend,
+		},
+	} {
+		switch config.backendType {
+		case backendTypeMemory:
+			*config.backendInstance = backend.NewMemoryBackend(make([]byte, *s))
 
-		if err := remoteFile.Truncate(*size); err != nil {
-			panic(err)
-		}
+		case backendTypeFile:
+			file, err := os.CreateTemp("", "")
+			if err != nil {
+				panic(err)
+			}
+			defer os.RemoveAll(file.Name())
 
-		localFile, err := os.CreateTemp("", "")
-		if err != nil {
-			panic(err)
-		}
-		defer os.RemoveAll(localFile.Name())
+			if err := file.Truncate(*s); err != nil {
+				panic(err)
+			}
 
-		if err := localFile.Truncate(*size); err != nil {
-			panic(err)
-		}
+			*config.backendInstance = backend.NewFileBackend(file)
 
-		remote = backend.NewFileBackend(remoteFile)
-		local = backend.NewFileBackend(localFile)
+		default:
+			panic(errUnknownBackend)
+		}
 	}
 
-	if _, err := io.CopyN(io.NewOffsetWriter(remote, 0), rand.Reader, *size); err != nil {
+	size, err := remote.Size()
+	if err != nil {
+		panic(err)
+	}
+	size = (size / *chunkSize) * *chunkSize
+
+	if _, err := io.CopyN(io.NewOffsetWriter(remote, 0), rand.Reader, size); err != nil {
 		panic(err)
 	}
 
@@ -83,13 +142,13 @@ func main() {
 		sync          func() error
 	)
 	if *slice {
-		mnt := device.NewSliceMount(
+		mnt := frontend.NewSliceFrontend(
 			ctx,
 
 			remote,
 			local,
 
-			&device.MountOptions{
+			&frontend.Options{
 				ChunkSize: *chunkSize,
 
 				PullWorkers: *pullWorkers,
@@ -128,13 +187,13 @@ func main() {
 
 		mountedReader, mount, sync = bytes.NewReader(mountedSlice), mountedSlice, mnt.Sync
 	} else {
-		mnt := device.NewFileMount(
+		mnt := frontend.NewFileFrontend(
 			ctx,
 
 			remote,
 			local,
 
-			&device.MountOptions{
+			&frontend.Options{
 				ChunkSize: *chunkSize,
 
 				PullWorkers: *pullWorkers,
@@ -178,23 +237,6 @@ func main() {
 
 	fmt.Printf("Open: %v\n", afterOpen)
 
-	var output backend.Backend
-	if *memory {
-		output = backend.NewMemoryBackend(make([]byte, *size))
-	} else {
-		outputFile, err := os.CreateTemp("", "")
-		if err != nil {
-			panic(err)
-		}
-		defer os.RemoveAll(outputFile.Name())
-
-		if err := outputFile.Truncate(*size); err != nil {
-			panic(err)
-		}
-
-		output = backend.NewFileBackend(outputFile)
-	}
-
 	beforeRead := time.Now()
 
 	if _, err := io.Copy(io.NewOffsetWriter(output, 0), mountedReader); err != nil {
@@ -203,16 +245,16 @@ func main() {
 
 	afterRead := time.Since(beforeRead)
 
-	fmt.Printf("Read throughput: %.2f MB/s\n", float64(*size)/(1024*1024)/afterRead.Seconds())
+	fmt.Printf("Read throughput: %.2f MB/s\n", float64(size)/(1024*1024)/afterRead.Seconds())
 
 	validate := func(output io.ReaderAt) error {
 		remoteHash := xxhash.New()
-		if _, err := io.Copy(remoteHash, io.NewSectionReader(remote, 0, *size)); err != nil {
+		if _, err := io.Copy(remoteHash, io.NewSectionReader(remote, 0, size)); err != nil {
 			return err
 		}
 
 		localHash := xxhash.New()
-		if _, err := io.Copy(localHash, io.NewSectionReader(local, 0, *size)); err != nil {
+		if _, err := io.Copy(localHash, io.NewSectionReader(local, 0, size)); err != nil {
 			return err
 		}
 
@@ -222,7 +264,7 @@ func main() {
 		}
 
 		outputHash := xxhash.New()
-		if _, err := io.Copy(outputHash, io.NewSectionReader(output, 0, *size)); err != nil {
+		if _, err := io.Copy(outputHash, io.NewSectionReader(output, 0, size)); err != nil {
 			return err
 		}
 
@@ -254,14 +296,14 @@ func main() {
 			panic(err)
 		}
 	} else {
-		if _, err := io.CopyN(mount.(*os.File), rand.Reader, *size); err != nil {
+		if _, err := io.CopyN(mount.(*os.File), rand.Reader, size); err != nil {
 			panic(err)
 		}
 	}
 
 	afterWrite := time.Since(beforeWrite)
 
-	fmt.Printf("Write throughput: %.2f MB/s\n", float64(*size)/(1024*1024)/afterWrite.Seconds())
+	fmt.Printf("Write throughput: %.2f MB/s\n", float64(size)/(1024*1024)/afterWrite.Seconds())
 
 	if *check && *pushWorkers > 0 {
 		beforeSync := time.Now()

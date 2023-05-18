@@ -1,4 +1,4 @@
-package device
+package frontend
 
 import (
 	"context"
@@ -12,8 +12,8 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 )
 
-type SliceMount struct {
-	mount *Mount
+type SliceFrontend struct {
+	path *PathFrontend
 
 	deviceFile *os.File
 
@@ -21,46 +21,46 @@ type SliceMount struct {
 	mmapMount sync.Mutex
 }
 
-func NewSliceMount(
+func NewSliceFrontend(
 	ctx context.Context,
 
 	remote backend.Backend,
 	local backend.Backend,
 
-	mountOptions *MountOptions,
+	options *Options,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *SliceMount {
-	m := &SliceMount{
-		mount: NewMount(
+) *SliceFrontend {
+	m := &SliceFrontend{
+		path: NewPathFrontend(
 			ctx,
 
 			remote,
 			local,
 
-			mountOptions,
-			&MountHooks{},
+			options,
+			&Hooks{},
 
 			serverOptions,
 			clientOptions,
 		),
 	}
 
-	m.mount.mountHooks.OnBeforeSync = m.onBeforeSync
+	m.path.hooks.OnBeforeSync = m.onBeforeSync
 
-	m.mount.mountHooks.OnBeforeClose = m.onBeforeClose
-	m.mount.mountHooks.OnAfterClose = m.onAfterClose
+	m.path.hooks.OnBeforeClose = m.onBeforeClose
+	m.path.hooks.OnAfterClose = m.onAfterClose
 
 	return m
 }
 
-func (m *SliceMount) Wait() error {
-	return m.mount.Wait()
+func (m *SliceFrontend) Wait() error {
+	return m.path.Wait()
 }
 
-func (m *SliceMount) Open() ([]byte, error) {
-	devicePath, size, err := m.mount.Open()
+func (m *SliceFrontend) Open() ([]byte, error) {
+	devicePath, size, err := m.path.Open()
 	if err != nil {
 		return []byte{}, err
 	}
@@ -84,9 +84,9 @@ func (m *SliceMount) Open() ([]byte, error) {
 	return m.slice, nil
 }
 
-func (m *SliceMount) onBeforeSync() error {
+func (m *SliceFrontend) onBeforeSync() error {
 	m.mmapMount.Lock()
-	if m.mount != nil {
+	if m.path != nil {
 		if _, _, err := syscall.Syscall(
 			syscall.SYS_MSYNC,
 			uintptr(unsafe.Pointer(&m.slice[0])),
@@ -103,7 +103,7 @@ func (m *SliceMount) onBeforeSync() error {
 	return nil
 }
 
-func (m *SliceMount) onBeforeClose() error {
+func (m *SliceFrontend) onBeforeClose() error {
 	if m.deviceFile != nil {
 		_ = m.deviceFile.Close()
 	}
@@ -111,7 +111,7 @@ func (m *SliceMount) onBeforeClose() error {
 	return nil
 }
 
-func (m *SliceMount) onAfterClose() error {
+func (m *SliceFrontend) onAfterClose() error {
 	m.mmapMount.Lock()
 	if m.slice != nil {
 		_ = syscall.Munmap(m.slice)
@@ -123,10 +123,10 @@ func (m *SliceMount) onAfterClose() error {
 	return nil
 }
 
-func (m *SliceMount) Close() error {
-	return m.mount.Close()
+func (m *SliceFrontend) Close() error {
+	return m.path.Close()
 }
 
-func (m *SliceMount) Sync() error {
-	return m.mount.Sync()
+func (m *SliceFrontend) Sync() error {
+	return m.path.Sync()
 }

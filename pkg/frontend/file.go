@@ -1,4 +1,4 @@
-package device
+package frontend
 
 import (
 	"context"
@@ -9,51 +9,51 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 )
 
-type FileMount struct {
-	mount *Mount
+type FileFrontend struct {
+	path *PathFrontend
 
 	deviceFile *os.File
 }
 
-func NewFileMount(
+func NewFileFrontend(
 	ctx context.Context,
 
 	remote backend.Backend,
 	local backend.Backend,
 
-	mountOptions *MountOptions,
+	options *Options,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *FileMount {
-	m := &FileMount{
-		mount: NewMount(
+) *FileFrontend {
+	m := &FileFrontend{
+		path: NewPathFrontend(
 			ctx,
 
 			remote,
 			local,
 
-			mountOptions,
-			&MountHooks{},
+			options,
+			&Hooks{},
 
 			serverOptions,
 			clientOptions,
 		),
 	}
 
-	m.mount.mountHooks.OnBeforeSync = m.onBeforeSync
+	m.path.hooks.OnBeforeSync = m.onBeforeSync
 
-	m.mount.mountHooks.OnBeforeClose = m.onBeforeClose
+	m.path.hooks.OnBeforeClose = m.onBeforeClose
 
 	return m
 }
 
-func (m *FileMount) Wait() error {
-	return m.mount.Wait()
+func (m *FileFrontend) Wait() error {
+	return m.path.Wait()
 }
 
-func (m *FileMount) Open() (*os.File, error) {
-	devicePath, _, err := m.mount.Open()
+func (m *FileFrontend) Open() (*os.File, error) {
+	devicePath, _, err := m.path.Open()
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (m *FileMount) Open() (*os.File, error) {
 	return m.deviceFile, nil
 }
 
-func (m *FileMount) onBeforeSync() error {
+func (m *FileFrontend) onBeforeSync() error {
 	if m.deviceFile != nil {
 		if err := m.deviceFile.Sync(); err != nil {
 			return nil
@@ -76,7 +76,7 @@ func (m *FileMount) onBeforeSync() error {
 	return nil
 }
 
-func (m *FileMount) onBeforeClose() error {
+func (m *FileFrontend) onBeforeClose() error {
 	if m.deviceFile != nil {
 		_ = m.deviceFile.Close()
 	}
@@ -84,10 +84,10 @@ func (m *FileMount) onBeforeClose() error {
 	return nil
 }
 
-func (m *FileMount) Close() error {
-	return m.mount.Close()
+func (m *FileFrontend) Close() error {
+	return m.path.Close()
 }
 
-func (m *FileMount) Sync() error {
-	return m.mount.Sync()
+func (m *FileFrontend) Sync() error {
+	return m.path.Sync()
 }
