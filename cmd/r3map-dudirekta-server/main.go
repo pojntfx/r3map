@@ -22,6 +22,8 @@ func main() {
 
 	file := flag.String("file", "disk.img", "Path to file to expose (ignored if memory-based backend is used)")
 
+	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
+
 	flag.Parse()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -43,7 +45,7 @@ func main() {
 	clients := 0
 
 	registry := rpc.NewRegistry(
-		services.NewBackend(b),
+		services.NewBackend(b, *verbose),
 		struct{}{},
 
 		time.Second*10,
