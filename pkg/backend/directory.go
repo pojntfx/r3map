@@ -46,7 +46,7 @@ func NewDirectoryBackend(
 	}
 }
 
-func (b *DirectoryBackend) getOrTrackFile(off int64) (*fileWithLock, error) {
+func (b *DirectoryBackend) getOrTrackFile(off int64, writing bool) (*fileWithLock, error) {
 	b.filesLock.Lock()
 	defer b.filesLock.Unlock()
 
@@ -70,8 +70,10 @@ func (b *DirectoryBackend) getOrTrackFile(off int64) (*fileWithLock, error) {
 			return nil, err
 		}
 
-		if err := f.Truncate(b.chunkSize); err != nil {
-			return nil, err
+		if !writing {
+			if err := f.Truncate(b.chunkSize); err != nil {
+				return nil, err
+			}
 		}
 
 		fl = &fileWithLock{
@@ -91,7 +93,7 @@ func (b *DirectoryBackend) ReadAt(p []byte, off int64) (n int, err error) {
 		log.Printf("ReadAt(len(p) = %v, off = %v)", len(p), off)
 	}
 
-	f, err := b.getOrTrackFile(off)
+	f, err := b.getOrTrackFile(off, false)
 	if err != nil {
 		return -1, err
 	}
@@ -107,7 +109,7 @@ func (b *DirectoryBackend) WriteAt(p []byte, off int64) (n int, err error) {
 		log.Printf("WriteAt(len(p) = %v, off = %v)", len(p), off)
 	}
 
-	f, err := b.getOrTrackFile(off)
+	f, err := b.getOrTrackFile(off, true)
 	if err != nil {
 		return -1, err
 	}
