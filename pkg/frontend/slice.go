@@ -4,9 +4,8 @@ import (
 	"context"
 	"os"
 	"sync"
-	"syscall"
-	"unsafe"
 
+	"github.com/edsrzf/mmap-go"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
 	"github.com/pojntfx/go-nbd/pkg/server"
@@ -17,7 +16,7 @@ type SliceFrontend struct {
 
 	deviceFile *os.File
 
-	slice     []byte
+	slice     mmap.MMap
 	mmapMount sync.Mutex
 }
 
@@ -70,14 +69,14 @@ func (m *SliceFrontend) Open() ([]byte, error) {
 		return []byte{}, err
 	}
 
-	m.slice, err = syscall.Mmap(
-		int(m.deviceFile.Fd()),
-		0,
-		int(size),
-		syscall.PROT_READ|syscall.PROT_WRITE,
-		syscall.MAP_SHARED,
-	)
+	m.slice, err = mmap.MapRegion(m.deviceFile, int(size), mmap.RDWR, 0, 0)
 	if err != nil {
+		return []byte{}, err
+	}
+
+	// We _MUST_ lock this slice so that it does not get paged out
+	// If it does, the Go GC tries to manage it, deadlocking _the entire runtime_
+	if err := m.slice.Lock(); err != nil {
 		return []byte{}, err
 	}
 
@@ -86,15 +85,8 @@ func (m *SliceFrontend) Open() ([]byte, error) {
 
 func (m *SliceFrontend) onBeforeSync() error {
 	m.mmapMount.Lock()
-	if m.path != nil {
-		if _, _, err := syscall.Syscall(
-			syscall.SYS_MSYNC,
-			uintptr(unsafe.Pointer(&m.slice[0])),
-			uintptr(len(m.slice)),
-			uintptr(syscall.MS_SYNC),
-		); err != 0 {
-			m.mmapMount.Unlock()
-
+	if m.slice != nil {
+		if err := m.slice.Flush(); err != nil {
 			return err
 		}
 	}
@@ -114,7 +106,9 @@ func (m *SliceFrontend) onBeforeClose() error {
 func (m *SliceFrontend) onAfterClose() error {
 	m.mmapMount.Lock()
 	if m.slice != nil {
-		_ = syscall.Munmap(m.slice)
+		_ = m.slice.Unlock()
+
+		_ = m.slice.Unmap()
 
 		m.slice = nil
 	}
