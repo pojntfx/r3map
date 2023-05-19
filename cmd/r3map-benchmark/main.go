@@ -10,12 +10,14 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"
+	"github.com/pojntfx/r3map/pkg/chunks"
 	"github.com/pojntfx/r3map/pkg/frontend"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
@@ -24,11 +26,12 @@ import (
 const (
 	backendTypeFile      = "file"
 	backendTypeMemory    = "memory"
+	backendTypeDirectory = "directory"
 	backendTypeDudirekta = "dudirekta"
 )
 
 var (
-	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDudirekta}
+	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory, backendTypeDudirekta}
 
 	errUnknownBackend = errors.New("unknown backend")
 	errNoPeerFound    = errors.New("no peer found")
@@ -53,7 +56,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	localRaddr := flag.String("local-raddr", "localhost:1337", "Local backend's remote address (ignored if local backend isn't a dudirekta backend)")
+	localLocation := flag.String("local-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for dudirekta) or directory (for directory backend)")
 
 	remoteBackend := flag.String(
 		"remote-backend",
@@ -63,7 +66,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	remoteRaddr := flag.String("remote-raddr", "localhost:1338", "Remote backend's remote address (ignored if remote backend isn't a dudirekta backend)")
+	remoteLocation := flag.String("remote-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta) or directory (for directory backend)")
 
 	outputBackend := flag.String(
 		"output-backend",
@@ -73,7 +76,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	outputRaddr := flag.String("output-raddr", "localhost:1339", "Output backend's remote address (ignored if output backend isn't a dudirekta backend)")
+	outputLocation := flag.String("output-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta) or directory (for directory backend)")
 
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 
@@ -94,22 +97,22 @@ func main() {
 	for _, config := range []struct {
 		backendInstance *backend.Backend
 		backendType     string
-		backendRaddr    string
+		backendLocation string
 	}{
 		{
 			&local,
 			*localBackend,
-			*localRaddr,
+			*localLocation,
 		},
 		{
 			&remote,
 			*remoteBackend,
-			*remoteRaddr,
+			*remoteLocation,
 		},
 		{
 			&output,
 			*outputBackend,
-			*outputRaddr,
+			*outputLocation,
 		},
 	} {
 		switch config.backendType {
@@ -129,6 +132,13 @@ func main() {
 
 			*config.backendInstance = backend.NewFileBackend(file)
 
+		case backendTypeDirectory:
+			if err := os.MkdirAll(config.backendLocation, os.ModePerm); err != nil {
+				panic(err)
+			}
+
+			*config.backendInstance = lbackend.NewDirectoryBackend(config.backendLocation, *s, *chunkSize, false)
+
 		case backendTypeDudirekta:
 			ready := make(chan struct{})
 			registry := rpc.NewRegistry(
@@ -145,7 +155,7 @@ func main() {
 				},
 			)
 
-			conn, err := net.Dial("tcp", config.backendRaddr)
+			conn, err := net.Dial("tcp", config.backendLocation)
 			if err != nil {
 				panic(err)
 			}
@@ -181,7 +191,12 @@ func main() {
 
 	size := (*s / *chunkSize) * *chunkSize
 
-	if _, err := io.CopyN(io.NewOffsetWriter(remote, 0), rand.Reader, size); err != nil {
+	if _, err := io.CopyN(
+		io.NewOffsetWriter(
+			chunks.NewArbitraryReadWriterAt(
+				chunks.NewChunkedReadWriterAt(remote, *chunkSize, size / *chunkSize),
+				*chunkSize),
+			0), rand.Reader, size); err != nil {
 		panic(err)
 	}
 
@@ -311,18 +326,13 @@ func main() {
 			return err
 		}
 
-		mountedHash := xxhash.New()
-		if _, err := io.Copy(mountedHash, mountedReader); err != nil {
-			return err
-		}
-
 		outputHash := xxhash.New()
 		if _, err := io.Copy(outputHash, io.NewSectionReader(output, 0, size)); err != nil {
 			return err
 		}
 
-		if remoteHash.Sum64() != localHash.Sum64() {
-			return errors.New("remote, local, mounted and output hashes don't match")
+		if !(remoteHash.Sum64() == localHash.Sum64() && localHash.Sum64() == outputHash.Sum64()) {
+			return errors.New("remote, local, and output hashes don't match")
 		}
 
 		return nil
@@ -336,7 +346,9 @@ func main() {
 		fmt.Println("Read check: Passed")
 	}
 
-	if !*slice {
+	if *slice {
+		mountedReader = bytes.NewReader(mount.([]byte))
+	} else {
 		if _, err := mount.(*os.File).Seek(0, io.SeekStart); err != nil {
 			panic(err)
 		}
@@ -361,6 +373,18 @@ func main() {
 	fmt.Printf("Write throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
 
 	if *check && *pushWorkers > 0 {
+		if *slice {
+			mountedReader = bytes.NewReader(mount.([]byte))
+		} else {
+			if _, err := mount.(*os.File).Seek(0, io.SeekStart); err != nil {
+				panic(err)
+			}
+		}
+
+		if _, err := io.CopyN(io.NewOffsetWriter(output, 0), mountedReader, size); err != nil {
+			panic(err)
+		}
+
 		beforeSync := time.Now()
 
 		if err := sync(); err != nil {
