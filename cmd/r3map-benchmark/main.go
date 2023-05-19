@@ -57,6 +57,7 @@ func main() {
 		),
 	)
 	localLocation := flag.String("local-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for dudirekta) or directory (for directory backend)")
+	localChunking := flag.Bool("local-chunking", true, "Whether the local backend requires to be interfaced with in fixed chunks in tests")
 
 	remoteBackend := flag.String(
 		"remote-backend",
@@ -67,6 +68,7 @@ func main() {
 		),
 	)
 	remoteLocation := flag.String("remote-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta) or directory (for directory backend)")
+	remoteChunking := flag.Bool("remote-chunking", true, "Whether the remote backend requires to be interfaced with in fixed chunks in tests")
 
 	outputBackend := flag.String(
 		"output-backend",
@@ -77,6 +79,7 @@ func main() {
 		),
 	)
 	outputLocation := flag.String("output-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta) or directory (for directory backend)")
+	outputChunking := flag.Bool("output-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks in tests")
 
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 
@@ -89,30 +92,42 @@ func main() {
 	defer cancel()
 
 	var (
-		local  backend.Backend
+		local backend.Backend
+		l     backend.Backend
+
 		remote backend.Backend
+		r      backend.Backend
+
 		output backend.Backend
 	)
 
 	for _, config := range []struct {
-		backendInstance *backend.Backend
-		backendType     string
-		backendLocation string
+		backendInstance              *backend.Backend
+		backendTestInstance          *backend.Backend
+		backendType                  string
+		backendLocation              string
+		testInstanceRequiresChunking bool
 	}{
 		{
+			&l,
 			&local,
 			*localBackend,
 			*localLocation,
+			*localChunking,
 		},
 		{
+			&r,
 			&remote,
 			*remoteBackend,
 			*remoteLocation,
+			*remoteChunking,
 		},
 		{
 			&output,
+			&output,
 			*outputBackend,
 			*outputLocation,
+			*outputChunking,
 		},
 	} {
 		switch config.backendType {
@@ -187,15 +202,28 @@ func main() {
 		default:
 			panic(errUnknownBackend)
 		}
+
+		if config.testInstanceRequiresChunking {
+			*config.backendTestInstance = lbackend.NewReaderAtBackend(
+				chunks.NewArbitraryReadWriterAt(
+					chunks.NewChunkedReadWriterAt(
+						*config.backendInstance, *chunkSize, *s / *chunkSize),
+					*chunkSize,
+				),
+				(*config.backendInstance).Size,
+				(*config.backendInstance).Sync,
+				false,
+			)
+		} else {
+			*config.backendTestInstance = *config.backendInstance
+		}
 	}
 
 	size := (*s / *chunkSize) * *chunkSize
 
 	if _, err := io.CopyN(
 		io.NewOffsetWriter(
-			chunks.NewArbitraryReadWriterAt(
-				chunks.NewChunkedReadWriterAt(remote, *chunkSize, size / *chunkSize),
-				*chunkSize),
+			remote,
 			0), rand.Reader, size); err != nil {
 		panic(err)
 	}
@@ -211,8 +239,8 @@ func main() {
 		mnt := frontend.NewSliceFrontend(
 			ctx,
 
-			remote,
-			local,
+			r,
+			l,
 
 			&frontend.Options{
 				ChunkSize: *chunkSize,
@@ -256,8 +284,8 @@ func main() {
 		mnt := frontend.NewFileFrontend(
 			ctx,
 
-			remote,
-			local,
+			r,
+			l,
 
 			&frontend.Options{
 				ChunkSize: *chunkSize,
@@ -305,7 +333,11 @@ func main() {
 
 	beforeRead := time.Now()
 
-	if _, err := io.CopyN(io.NewOffsetWriter(output, 0), mountedReader, size); err != nil {
+	if _, err := io.CopyN(
+		io.NewOffsetWriter(
+			output,
+			0,
+		), mountedReader, size); err != nil {
 		panic(err)
 	}
 
@@ -316,18 +348,47 @@ func main() {
 	fmt.Printf("Read throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
 
 	validate := func(output io.ReaderAt) error {
+		if *slice {
+			mountedReader = bytes.NewReader(mount.([]byte))
+		} else {
+			if _, err := mount.(*os.File).Seek(0, io.SeekStart); err != nil {
+				panic(err)
+			}
+		}
+
 		remoteHash := xxhash.New()
-		if _, err := io.Copy(remoteHash, io.NewSectionReader(remote, 0, size)); err != nil {
+		if _, err := io.Copy(
+			remoteHash,
+			io.NewSectionReader(
+				remote,
+				0,
+				size,
+			),
+		); err != nil {
 			return err
 		}
 
 		localHash := xxhash.New()
-		if _, err := io.Copy(localHash, io.NewSectionReader(local, 0, size)); err != nil {
+		if _, err := io.Copy(
+			localHash,
+			io.NewSectionReader(
+				local,
+				0,
+				size,
+			),
+		); err != nil {
 			return err
 		}
 
 		outputHash := xxhash.New()
-		if _, err := io.Copy(outputHash, io.NewSectionReader(output, 0, size)); err != nil {
+		if _, err := io.Copy(
+			outputHash,
+			io.NewSectionReader(
+				output,
+				0,
+				size,
+			),
+		); err != nil {
 			return err
 		}
 
@@ -344,14 +405,6 @@ func main() {
 		}
 
 		fmt.Println("Read check: Passed")
-	}
-
-	if *slice {
-		mountedReader = bytes.NewReader(mount.([]byte))
-	} else {
-		if _, err := mount.(*os.File).Seek(0, io.SeekStart); err != nil {
-			panic(err)
-		}
 	}
 
 	beforeWrite := time.Now()
@@ -381,7 +434,11 @@ func main() {
 			}
 		}
 
-		if _, err := io.CopyN(io.NewOffsetWriter(output, 0), mountedReader, size); err != nil {
+		if _, err := io.CopyN(
+			io.NewOffsetWriter(
+				output,
+				0,
+			), mountedReader, size); err != nil {
 			panic(err)
 		}
 
