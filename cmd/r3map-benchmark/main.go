@@ -21,6 +21,7 @@ import (
 	"github.com/pojntfx/r3map/pkg/frontend"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -28,10 +29,11 @@ const (
 	backendTypeMemory    = "memory"
 	backendTypeDirectory = "directory"
 	backendTypeDudirekta = "dudirekta"
+	backendTypeRedis     = "redis"
 )
 
 var (
-	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory, backendTypeDudirekta}
+	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory, backendTypeDudirekta, backendTypeRedis}
 
 	errUnknownBackend = errors.New("unknown backend")
 	errNoPeerFound    = errors.New("no peer found")
@@ -56,7 +58,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	localLocation := flag.String("local-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for dudirekta) or directory (for directory backend)")
+	localLocation := flag.String("local-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0) or directory (for directory backend)")
 	localChunking := flag.Bool("local-chunking", true, "Whether the local backend requires to be interfaced with in fixed chunks in tests")
 
 	remoteBackend := flag.String(
@@ -67,7 +69,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	remoteLocation := flag.String("remote-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta) or directory (for directory backend)")
+	remoteLocation := flag.String("remote-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0) or directory (for directory backend)")
 	remoteChunking := flag.Bool("remote-chunking", true, "Whether the remote backend requires to be interfaced with in fixed chunks in tests")
 
 	outputBackend := flag.String(
@@ -78,7 +80,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	outputLocation := flag.String("output-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta) or directory (for directory backend)")
+	outputLocation := flag.String("output-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0) or directory (for directory backend)")
 	outputChunking := flag.Bool("output-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks in tests")
 
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
@@ -198,6 +200,14 @@ func main() {
 			}
 
 			*config.backendInstance = lbackend.NewRPCBackend(ctx, *peer, false)
+
+		case backendTypeRedis:
+			u, err := redis.ParseURL(config.backendLocation)
+			if err != nil {
+				panic(err)
+			}
+
+			*config.backendInstance = lbackend.NewRedisBackend(ctx, u, *s, false)
 
 		default:
 			panic(errUnknownBackend)

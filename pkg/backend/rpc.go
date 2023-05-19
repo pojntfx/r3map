@@ -8,8 +8,10 @@ import (
 )
 
 type RPCBackend struct {
-	ctx     context.Context
-	remote  services.BackendRemote
+	ctx context.Context
+
+	remote services.BackendRemote
+
 	verbose bool
 }
 
