@@ -296,7 +296,9 @@ func main() {
 
 	afterRead := time.Since(beforeRead)
 
-	fmt.Printf("Read throughput: %.2f MB/s\n", float64(size)/(1024*1024)/afterRead.Seconds())
+	throughputMB := float64(size) / (1024 * 1024) / afterRead.Seconds()
+
+	fmt.Printf("Read throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
 
 	validate := func(output io.ReaderAt) error {
 		remoteHash := xxhash.New()
@@ -354,7 +356,9 @@ func main() {
 
 	afterWrite := time.Since(beforeWrite)
 
-	fmt.Printf("Write throughput: %.2f MB/s\n", float64(size)/(1024*1024)/afterWrite.Seconds())
+	throughputMB = float64(size) / (1024 * 1024) / afterWrite.Seconds()
+
+	fmt.Printf("Write throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
 
 	if *check && *pushWorkers > 0 {
 		beforeSync := time.Now()
