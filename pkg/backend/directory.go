@@ -8,13 +8,20 @@ import (
 	"sync"
 )
 
-type DirectoryBackend struct {
-	directory string
-	size      int64
-	chunkSize int64
+type fileWithLock struct {
+	file *os.File
+	lock *sync.Mutex
+}
 
-	files     map[int64]*os.File
-	filesLock sync.Mutex
+type DirectoryBackend struct {
+	directory    string
+	size         int64
+	chunkSize    int64
+	maxOpenFiles int64
+
+	files      map[int64]*fileWithLock
+	filesLock  sync.Mutex
+	filesQueue []int64
 
 	verbose bool
 }
@@ -23,42 +30,60 @@ func NewDirectoryBackend(
 	directory string,
 	size int64,
 	chunkSize int64,
+	maxOpenFiles int64,
 	verbose bool,
 ) *DirectoryBackend {
 	return &DirectoryBackend{
-		directory: directory,
-		size:      size,
-		chunkSize: chunkSize,
+		directory:    directory,
+		size:         size,
+		chunkSize:    chunkSize,
+		maxOpenFiles: maxOpenFiles,
 
-		files: map[int64]*os.File{},
+		files:      map[int64]*fileWithLock{},
+		filesQueue: make([]int64, 0, maxOpenFiles),
 
 		verbose: verbose,
 	}
 }
 
-func (b *DirectoryBackend) getOrTrackFile(off int64) (*os.File, error) {
+func (b *DirectoryBackend) getOrTrackFile(off int64) (*fileWithLock, error) {
 	b.filesLock.Lock()
-	f, ok := b.files[off]
-	if !ok {
-		var err error
-		f, err = os.OpenFile(filepath.Join(b.directory, strconv.FormatInt(off, 10)), os.O_RDWR|os.O_CREATE, os.ModePerm)
-		if err != nil {
-			b.filesLock.Unlock()
+	defer b.filesLock.Unlock()
 
+	fl, ok := b.files[off]
+	if !ok {
+		if int64(len(b.filesQueue)) == b.maxOpenFiles {
+			lruOff := b.filesQueue[0]
+			lruFl := b.files[lruOff]
+
+			lruFl.lock.Lock()
+			lruFl.file.Close()
+			lruFl.lock.Unlock()
+
+			delete(b.files, lruOff)
+
+			b.filesQueue = b.filesQueue[1:]
+		}
+
+		f, err := os.OpenFile(filepath.Join(b.directory, strconv.FormatInt(off, 10)), os.O_RDWR|os.O_CREATE, os.ModePerm)
+		if err != nil {
 			return nil, err
 		}
 
 		if err := f.Truncate(b.chunkSize); err != nil {
-			b.filesLock.Unlock()
-
 			return nil, err
 		}
 
-		b.files[off] = f
-	}
-	b.filesLock.Unlock()
+		fl = &fileWithLock{
+			file: f,
+			lock: &sync.Mutex{},
+		}
 
-	return f, nil
+		b.files[off] = fl
+		b.filesQueue = append(b.filesQueue, off)
+	}
+
+	return fl, nil
 }
 
 func (b *DirectoryBackend) ReadAt(p []byte, off int64) (n int, err error) {
@@ -71,7 +96,10 @@ func (b *DirectoryBackend) ReadAt(p []byte, off int64) (n int, err error) {
 		return -1, err
 	}
 
-	return f.ReadAt(p, 0)
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	return f.file.ReadAt(p, 0)
 }
 
 func (b *DirectoryBackend) WriteAt(p []byte, off int64) (n int, err error) {
@@ -84,7 +112,10 @@ func (b *DirectoryBackend) WriteAt(p []byte, off int64) (n int, err error) {
 		return -1, err
 	}
 
-	return f.WriteAt(p, 0)
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	return f.file.WriteAt(p, 0)
 }
 
 func (b *DirectoryBackend) Size() (int64, error) {
@@ -104,7 +135,7 @@ func (b *DirectoryBackend) Sync() error {
 	defer b.filesLock.Unlock()
 
 	for _, f := range b.files {
-		if err := f.Sync(); err != nil {
+		if err := f.file.Sync(); err != nil {
 			return err
 		}
 	}

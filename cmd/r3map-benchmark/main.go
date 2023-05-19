@@ -152,7 +152,7 @@ func main() {
 				panic(err)
 			}
 
-			*config.backendInstance = lbackend.NewDirectoryBackend(config.backendLocation, *s, *chunkSize, false)
+			*config.backendInstance = lbackend.NewDirectoryBackend(config.backendLocation, *s, *chunkSize, 512, false)
 
 		case backendTypeDudirekta:
 			ready := make(chan struct{})
