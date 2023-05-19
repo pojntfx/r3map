@@ -117,7 +117,7 @@ func (m *PathFrontend) Open() (string, int64, error) {
 	}
 	chunkCount := size / m.options.ChunkSize
 
-	devicePath, err := utils.FindUnusedNBDDevice(time.Millisecond * 50)
+	devicePath, err := utils.FindUnusedNBDDevice()
 	if err != nil {
 		return "", 0, err
 	}

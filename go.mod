@@ -6,7 +6,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/edsrzf/mmap-go v1.1.0
 	github.com/pojntfx/dudirekta v0.5.0
-	github.com/pojntfx/go-nbd v0.1.8
+	github.com/pojntfx/go-nbd v0.1.9
 )
 
 require (
