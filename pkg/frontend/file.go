@@ -15,6 +15,10 @@ type FileFrontend struct {
 	deviceFile *os.File
 }
 
+type FileFrontendHooks struct {
+	OnChunkIsLocal func(off int64) error
+}
+
 func NewFileFrontend(
 	ctx context.Context,
 
@@ -22,10 +26,16 @@ func NewFileFrontend(
 	local backend.Backend,
 
 	options *Options,
+	hooks *FileFrontendHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
 ) *FileFrontend {
+	h := &Hooks{}
+	if hooks != nil {
+		h.OnChunkIsLocal = hooks.OnChunkIsLocal
+	}
+
 	m := &FileFrontend{
 		path: NewPathFrontend(
 			ctx,
@@ -34,7 +44,7 @@ func NewFileFrontend(
 			local,
 
 			options,
-			&Hooks{},
+			h,
 
 			serverOptions,
 			clientOptions,

@@ -32,6 +32,8 @@ type Hooks struct {
 
 	OnBeforeClose func() error
 	OnAfterClose  func() error
+
+	OnChunkIsLocal func(off int64) error
 }
 
 type PathFrontend struct {
@@ -161,6 +163,12 @@ func (m *PathFrontend) Open() (string, int64, error) {
 		if m.options.PushWorkers > 0 {
 			if err := local.(*chunks.Pusher).MarkOffsetPushable(off); err != nil {
 				return err
+			}
+
+			if hook := m.hooks.OnChunkIsLocal; hook != nil {
+				if err := hook(off); err != nil {
+					return err
+				}
 			}
 		}
 

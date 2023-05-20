@@ -11,6 +11,10 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 )
 
+type SliceFrontendHooks struct {
+	OnChunkIsLocal func(off int64) error
+}
+
 type SliceFrontend struct {
 	path *PathFrontend
 
@@ -27,10 +31,16 @@ func NewSliceFrontend(
 	local backend.Backend,
 
 	options *Options,
+	hooks *SliceFrontendHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
 ) *SliceFrontend {
+	h := &Hooks{}
+	if hooks != nil {
+		h.OnChunkIsLocal = hooks.OnChunkIsLocal
+	}
+
 	m := &SliceFrontend{
 		path: NewPathFrontend(
 			ctx,
@@ -39,7 +49,7 @@ func NewSliceFrontend(
 			local,
 
 			options,
-			&Hooks{},
+			h,
 
 			serverOptions,
 			clientOptions,

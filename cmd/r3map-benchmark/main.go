@@ -347,9 +347,10 @@ func main() {
 	beforeOpen := time.Now()
 
 	var (
-		mountedReader io.Reader
-		mount         any
-		sync          func() error
+		mountedReader            io.Reader
+		mount                    any
+		sync                     func() error
+		preemptivelyPulledChunks int64
 	)
 	if *slice {
 		mnt := frontend.NewSliceFrontend(
@@ -368,6 +369,13 @@ func main() {
 				PushInterval: *pushInterval,
 
 				Verbose: *verbose,
+			},
+			&frontend.SliceFrontendHooks{
+				OnChunkIsLocal: func(off int64) error {
+					preemptivelyPulledChunks++
+
+					return nil
+				},
 			},
 
 			nil,
@@ -414,6 +422,13 @@ func main() {
 
 				Verbose: *verbose,
 			},
+			&frontend.FileFrontendHooks{
+				OnChunkIsLocal: func(off int64) error {
+					preemptivelyPulledChunks++
+
+					return nil
+				},
+			},
 
 			nil,
 			nil,
@@ -445,7 +460,37 @@ func main() {
 
 	afterOpen := time.Since(beforeOpen)
 
-	fmt.Printf("Open: %v\n", afterOpen)
+	if *pullWorkers > 0 {
+		fmt.Printf(
+			"Open: %v (pre-emptively pulled %.2f MB)\n",
+			afterOpen,
+			float64(preemptivelyPulledChunks**chunkSize)/(1024*1024),
+		)
+	} else {
+		fmt.Printf("Open: %v\n", afterOpen)
+	}
+
+	beforeFirstTwoChunks := time.Now()
+
+	if _, err := io.CopyN(
+		io.NewOffsetWriter(
+			output,
+			0,
+		), mountedReader, *chunkSize*2); err != nil {
+		panic(err)
+	}
+
+	afterFirstTwoChunks := time.Since(beforeFirstTwoChunks)
+
+	fmt.Printf("Latency till first two chunks: %v\n", afterFirstTwoChunks)
+
+	if *slice {
+		mountedReader = bytes.NewReader(mount.([]byte))
+	} else {
+		if _, err := mount.(*os.File).Seek(0, io.SeekStart); err != nil {
+			panic(err)
+		}
+	}
 
 	beforeRead := time.Now()
 
