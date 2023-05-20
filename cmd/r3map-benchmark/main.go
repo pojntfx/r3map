@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/gocql/gocql"
 	"github.com/minio/minio-go"
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
@@ -33,10 +34,11 @@ const (
 	backendTypeDudirekta = "dudirekta"
 	backendTypeRedis     = "redis"
 	backendTypeS3        = "s3"
+	backendTypeCassandra = "cassandra"
 )
 
 var (
-	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory, backendTypeDudirekta, backendTypeRedis, backendTypeS3}
+	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory, backendTypeDudirekta, backendTypeRedis, backendTypeS3, backendTypeCassandra}
 
 	errUnknownBackend     = errors.New("unknown backend")
 	errNoPeerFound        = errors.New("no peer found")
@@ -63,7 +65,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	localLocation := flag.String("local-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix) or directory (for directory backend)")
+	localLocation := flag.String("local-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
 	localChunking := flag.Bool("local-chunking", true, "Whether the local backend requires to be interfaced with in fixed chunks in tests")
 
 	remoteBackend := flag.String(
@@ -74,7 +76,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	remoteLocation := flag.String("remote-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix) or directory (for directory backend)")
+	remoteLocation := flag.String("remote-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
 	remoteChunking := flag.Bool("remote-chunking", true, "Whether the remote backend requires to be interfaced with in fixed chunks in tests")
 
 	outputBackend := flag.String(
@@ -85,7 +87,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	outputLocation := flag.String("output-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix) or directory (for directory backend)")
+	outputLocation := flag.String("output-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
 	outputChunking := flag.Bool("output-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks in tests")
 
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
@@ -212,7 +214,10 @@ func main() {
 				panic(err)
 			}
 
-			*config.backendInstance = lbackend.NewRedisBackend(ctx, redis.NewClient(options), *s, false)
+			client := redis.NewClient(options)
+			defer client.Close()
+
+			*config.backendInstance = lbackend.NewRedisBackend(ctx, client, *s, false)
 
 		case backendTypeS3:
 			u, err := url.Parse(config.backendLocation)
@@ -230,7 +235,7 @@ func main() {
 				panic(errMissingPassword)
 			}
 
-			client, err := minio.New(net.JoinHostPort(u.Hostname(), u.Port()), user.Username(), pw, u.Scheme == "https")
+			client, err := minio.New(u.Host, user.Username(), pw, u.Scheme == "https")
 			if err != nil {
 				panic(err)
 			}
@@ -249,6 +254,66 @@ func main() {
 			}
 
 			*config.backendInstance = lbackend.NewS3Backend(ctx, client, bucketName, u.Query().Get("prefix"), *s, false)
+
+		case backendTypeCassandra:
+			u, err := url.Parse(config.backendLocation)
+			if err != nil {
+				panic(err)
+			}
+
+			user := u.User
+			if user == nil {
+				panic(errMissingCredentials)
+			}
+
+			pw, ok := user.Password()
+			if !ok {
+				panic(errMissingPassword)
+			}
+
+			cluster := gocql.NewCluster(u.Host)
+			cluster.Consistency = gocql.Quorum
+			cluster.Authenticator = gocql.PasswordAuthenticator{
+				Username: user.Username(),
+				Password: pw,
+			}
+
+			if u.Scheme == "cassandrasecure" {
+				cluster.SslOpts = &gocql.SslOptions{
+					EnableHostVerification: true,
+				}
+			}
+
+			keyspaceName := u.Query().Get("keyspace")
+			{
+				setupSession, err := cluster.CreateSession()
+				if err != nil {
+					panic(err)
+				}
+
+				if err := setupSession.Query(`create keyspace if not exists ` + keyspaceName + ` with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }`).Exec(); err != nil {
+					setupSession.Close()
+
+					panic(err)
+				}
+
+				setupSession.Close()
+			}
+			cluster.Keyspace = keyspaceName
+
+			session, err := cluster.CreateSession()
+			if err != nil {
+				panic(err)
+			}
+			defer session.Close()
+
+			tableName := u.Query().Get("table")
+
+			if err := session.Query(`create table if not exists ` + tableName + ` (key blob primary key, data blob)`).Exec(); err != nil {
+				panic(err)
+			}
+
+			*config.backendInstance = lbackend.NewCassandraBackend(session, tableName, u.Query().Get("prefix"), *s, false)
 
 		default:
 			panic(errUnknownBackend)
