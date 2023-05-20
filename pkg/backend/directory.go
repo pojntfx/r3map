@@ -57,11 +57,20 @@ func (b *DirectoryBackend) getOrTrackFile(off int64, writing bool) (*fileWithLoc
 			lruFl := b.files[lruOff]
 
 			lruFl.lock.Lock()
-			lruFl.file.Close()
+
+			if lruFl.file != nil {
+				if err := lruFl.file.Close(); err != nil {
+					lruFl.lock.Unlock()
+
+					return nil, err
+				}
+
+				lruFl.file = nil
+			}
+
 			lruFl.lock.Unlock()
 
 			delete(b.files, lruOff)
-
 			b.filesQueue = b.filesQueue[1:]
 		}
 
