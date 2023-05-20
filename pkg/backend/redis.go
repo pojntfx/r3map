@@ -11,23 +11,23 @@ import (
 type RedisBackend struct {
 	ctx context.Context
 
-	redisClient *redis.Client
-	size        int64
+	client *redis.Client
+	size   int64
 
 	verbose bool
 }
 
 func NewRedisBackend(
 	ctx context.Context,
-	redisOptions *redis.Options,
+	client *redis.Client,
 	size int64,
 	verbose bool,
 ) *RedisBackend {
 	return &RedisBackend{
 		ctx: ctx,
 
-		redisClient: redis.NewClient(redisOptions),
-		size:        size,
+		client: client,
+		size:   size,
 
 		verbose: verbose,
 	}
@@ -38,7 +38,7 @@ func (b *RedisBackend) ReadAt(p []byte, off int64) (n int, err error) {
 		log.Printf("ReadAt(len(p) = %v, off = %v)", len(p), off)
 	}
 
-	val, err := b.redisClient.Get(b.ctx, strconv.FormatInt(off, 10)).Bytes()
+	val, err := b.client.Get(b.ctx, strconv.FormatInt(off, 10)).Bytes()
 	if err != nil {
 		if err == redis.Nil {
 			return len(p), nil
@@ -55,7 +55,7 @@ func (b *RedisBackend) WriteAt(p []byte, off int64) (n int, err error) {
 		log.Printf("WriteAt(len(p) = %v, off = %v)", len(p), off)
 	}
 
-	if err := b.redisClient.Set(b.ctx, strconv.FormatInt(off, 10), p, 0).Err(); err != nil {
+	if err := b.client.Set(b.ctx, strconv.FormatInt(off, 10), p, 0).Err(); err != nil {
 		return 0, err
 	}
 

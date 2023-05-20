@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/minio/minio-go"
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"
@@ -30,13 +32,16 @@ const (
 	backendTypeDirectory = "directory"
 	backendTypeDudirekta = "dudirekta"
 	backendTypeRedis     = "redis"
+	backendTypeS3        = "s3"
 )
 
 var (
-	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory, backendTypeDudirekta, backendTypeRedis}
+	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory, backendTypeDudirekta, backendTypeRedis, backendTypeS3}
 
-	errUnknownBackend = errors.New("unknown backend")
-	errNoPeerFound    = errors.New("no peer found")
+	errUnknownBackend     = errors.New("unknown backend")
+	errNoPeerFound        = errors.New("no peer found")
+	errMissingCredentials = errors.New("missing credentials")
+	errMissingPassword    = errors.New("missing password")
 )
 
 func main() {
@@ -58,7 +63,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	localLocation := flag.String("local-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0) or directory (for directory backend)")
+	localLocation := flag.String("local-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix) or directory (for directory backend)")
 	localChunking := flag.Bool("local-chunking", true, "Whether the local backend requires to be interfaced with in fixed chunks in tests")
 
 	remoteBackend := flag.String(
@@ -69,7 +74,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	remoteLocation := flag.String("remote-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0) or directory (for directory backend)")
+	remoteLocation := flag.String("remote-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix) or directory (for directory backend)")
 	remoteChunking := flag.Bool("remote-chunking", true, "Whether the remote backend requires to be interfaced with in fixed chunks in tests")
 
 	outputBackend := flag.String(
@@ -80,7 +85,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	outputLocation := flag.String("output-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0) or directory (for directory backend)")
+	outputLocation := flag.String("output-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix) or directory (for directory backend)")
 	outputChunking := flag.Bool("output-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks in tests")
 
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
@@ -202,12 +207,48 @@ func main() {
 			*config.backendInstance = lbackend.NewRPCBackend(ctx, *peer, false)
 
 		case backendTypeRedis:
-			u, err := redis.ParseURL(config.backendLocation)
+			options, err := redis.ParseURL(config.backendLocation)
 			if err != nil {
 				panic(err)
 			}
 
-			*config.backendInstance = lbackend.NewRedisBackend(ctx, u, *s, false)
+			*config.backendInstance = lbackend.NewRedisBackend(ctx, redis.NewClient(options), *s, false)
+
+		case backendTypeS3:
+			u, err := url.Parse(config.backendLocation)
+			if err != nil {
+				panic(err)
+			}
+
+			user := u.User
+			if user == nil {
+				panic(errMissingCredentials)
+			}
+
+			pw, ok := user.Password()
+			if !ok {
+				panic(errMissingPassword)
+			}
+
+			client, err := minio.New(net.JoinHostPort(u.Hostname(), u.Port()), user.Username(), pw, u.Scheme == "https")
+			if err != nil {
+				panic(err)
+			}
+
+			bucketName := u.Query().Get("bucket")
+
+			bucketExists, err := client.BucketExists(bucketName)
+			if err != nil {
+				panic(err)
+			}
+
+			if !bucketExists {
+				if err := client.MakeBucket(bucketName, ""); err != nil {
+					panic(err)
+				}
+			}
+
+			*config.backendInstance = lbackend.NewS3Backend(ctx, client, bucketName, u.Query().Get("prefix"), *s, false)
 
 		default:
 			panic(errUnknownBackend)
