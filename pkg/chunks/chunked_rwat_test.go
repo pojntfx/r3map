@@ -173,3 +173,25 @@ func TestChunkedReadWriterAt(t *testing.T) {
 		})
 	}
 }
+
+func TestChunkedReadWriterAtWithGenericTest(t *testing.T) {
+	TestChunkedReadWriterAtGeneric(
+		t,
+		func(chunkSize, chunkCount int64) (ReadWriterAt, func() error, error) {
+			f, err := os.CreateTemp("", "")
+			if err != nil {
+				return nil, nil, err
+			}
+
+			if err := f.Truncate(chunkSize * chunkCount); err != nil {
+				return nil, nil, err
+			}
+
+			return NewChunkedReadWriterAt(f, chunkSize, chunkCount), func() error {
+				return os.RemoveAll(f.Name())
+			}, nil
+		},
+		[]int64{1, 2, 8, 64, 256, 512, 4096},
+		[]int64{1, 10, 100},
+	)
+}
