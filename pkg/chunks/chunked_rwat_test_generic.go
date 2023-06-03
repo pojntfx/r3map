@@ -43,7 +43,7 @@ func TestChunkedReadWriterAtGeneric(
 						wantBytes: writeData,
 					},
 				} {
-					t.Run(fmt.Sprintf("%s_chunkSize_%d_chunks_%d", tc.name, chunkSize, chunkCount), func(t *testing.T) {
+					t.Run(fmt.Sprintf("%s_chunkSize_%d_chunkCount_%d", tc.name, chunkSize, chunkCount), func(t *testing.T) {
 						rwa, free, err := getReadWriterAt(chunkSize, chunkCount)
 						if err != nil {
 							t.Fatal(err)

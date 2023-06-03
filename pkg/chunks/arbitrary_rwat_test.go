@@ -111,3 +111,40 @@ func TestArbitraryReadWriterAt(t *testing.T) {
 		})
 	}
 }
+
+func TestArbitraryReadWriterAtWithGenericTest(t *testing.T) {
+	TestArbitraryReadWriterAtGeneric(
+		t,
+		func(chunkSize, chunkCount int64) (ReadWriterAt, func() error, error) {
+			f, err := os.CreateTemp("", "")
+			if err != nil {
+				return nil, nil, err
+			}
+
+			if err := f.Truncate(chunkSize * chunkCount); err != nil {
+				return nil, nil, err
+			}
+
+			return NewArbitraryReadWriterAt(
+					NewChunkedReadWriterAt(f, chunkSize, chunkCount),
+					chunkSize,
+				),
+				func() error {
+					return os.RemoveAll(f.Name())
+				},
+				nil
+		},
+		[]ReadWriteConfiguration{
+			{
+				ChunkSizes:  []int64{2, 4, 8},
+				ChunkCount:  16,
+				BufferSizes: []int64{1, 2, 4, 8, 16},
+			},
+			{
+				ChunkSizes:  []int64{2, 4, 8},
+				ChunkCount:  64,
+				BufferSizes: []int64{1, 2, 4, 8, 16, 32, 64, 128},
+			},
+		},
+	)
+}
