@@ -1,6 +1,7 @@
 package chunks
 
 import (
+	"io"
 	"sync"
 )
 
@@ -10,7 +11,7 @@ type chunk struct {
 }
 
 type SyncedReadWriterAt struct {
-	remote ReadWriterAt
+	remote io.ReaderAt
 	local  ReadWriterAt
 
 	chunks     map[int64]*chunk
@@ -19,7 +20,7 @@ type SyncedReadWriterAt struct {
 	onChunkIsLocal func(off int64) error
 }
 
-func NewSyncedReadWriterAt(remote ReadWriterAt, local ReadWriterAt, onChunkIsLocal func(off int64) error) *SyncedReadWriterAt {
+func NewSyncedReadWriterAt(remote io.ReaderAt, local ReadWriterAt, onChunkIsLocal func(off int64) error) *SyncedReadWriterAt {
 	return &SyncedReadWriterAt{
 		remote,
 		local,
