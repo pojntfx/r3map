@@ -9,6 +9,8 @@ import (
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
+	lbackend "github.com/pojntfx/r3map/pkg/backend"
+	"github.com/pojntfx/r3map/pkg/chunks"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
 )
@@ -18,6 +20,8 @@ func main() {
 
 	size := flag.Int64("size", 4096*8192, "Size of the memory region to expose")
 
+	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
+
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
 	flag.Parse()
@@ -25,7 +29,18 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	b := backend.NewMemoryBackend(make([]byte, *size))
+	rb := backend.NewMemoryBackend(make([]byte, *size))
+
+	b := lbackend.NewReaderAtBackend(
+		chunks.NewChunkedReadWriterAt(
+			rb,
+			*chunkSize,
+			*size / *chunkSize,
+		),
+		rb.Size,
+		rb.Sync,
+		false,
+	)
 
 	clients := 0
 
