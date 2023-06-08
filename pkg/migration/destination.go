@@ -141,6 +141,9 @@ func (m *Destination) Open() (string, error) {
 		return "", err
 	}
 
+	// TODO: Call this after getting the dirty offsets from the remote flush and also make sure to mark the chunks as !local in the SyncedReadWriterAt
+	m.puller.FinalizePull([]int64{})
+
 	arbitraryReadWriter := chunks.NewArbitraryReadWriterAt(syncedReadWriter, m.options.ChunkSize)
 
 	m.syncer = bbackend.NewReaderAtBackend(

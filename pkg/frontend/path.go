@@ -203,6 +203,8 @@ func (m *PathFrontend) Open() (string, int64, error) {
 			return "", 0, err
 		}
 
+		m.puller.FinalizePull([]int64{})
+
 		if m.options.PullFirst {
 			if err := m.puller.Wait(); err != nil {
 				return "", 0, err

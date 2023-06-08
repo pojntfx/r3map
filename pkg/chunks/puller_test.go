@@ -15,6 +15,7 @@ func TestPuller(t *testing.T) {
 		workers      int64
 		data         [][]byte
 		pullPriority func(offset int64) int64
+		dirtyOffsets []int64
 	}{
 		{
 			name:      "Pull 1 chunk with 1 worker and generic pull priority heuristic",
@@ -25,6 +26,7 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return 1
 			},
+			dirtyOffsets: []int64{},
 		},
 		{
 			name:      "Pull 1 chunk with 2 workers and generic pull priority heuristic",
@@ -35,6 +37,7 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return 1
 			},
+			dirtyOffsets: []int64{},
 		},
 		{
 			name:      "Pull 2 chunks with 1 worker and generic pull priority heuristic",
@@ -45,6 +48,7 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return 1
 			},
+			dirtyOffsets: []int64{},
 		},
 		{
 			name:      "Pull 2 chunks with 2 workers and generic pull priority heuristic",
@@ -55,6 +59,7 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return 1
 			},
+			dirtyOffsets: []int64{},
 		},
 		{
 			name:      "Pull 1 chunk with 1 worker and linear pull priority heuristic",
@@ -65,6 +70,7 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return offset
 			},
+			dirtyOffsets: []int64{},
 		},
 		{
 			name:      "Pull 1 chunk with 2 workers and linear pull priority heuristic",
@@ -75,6 +81,7 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return offset
 			},
+			dirtyOffsets: []int64{},
 		},
 		{
 			name:      "Pull 2 chunks with 1 worker and linear pull priority heuristic",
@@ -85,6 +92,7 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return offset
 			},
+			dirtyOffsets: []int64{},
 		},
 		{
 			name:      "Pull 2 chunks with 2 workers and linear pull priority heuristic",
@@ -95,6 +103,7 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return offset
 			},
+			dirtyOffsets: []int64{},
 		},
 		{
 			name:      "Pull 1 chunk with 1 worker and decreasing pull priority heuristic",
@@ -105,6 +114,7 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return -offset
 			},
+			dirtyOffsets: []int64{},
 		},
 		{
 			name:      "Pull 1 chunk with 2 workers and decreasing pull priority heuristic",
@@ -115,6 +125,7 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return -offset
 			},
+			dirtyOffsets: []int64{},
 		},
 		{
 			name:      "Pull 2 chunks with 1 worker and decreasing pull priority heuristic",
@@ -125,6 +136,7 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return -offset
 			},
+			dirtyOffsets: []int64{},
 		},
 		{
 			name:      "Pull 2 chunks with 2 workers and decreasing pull priority heuristic",
@@ -135,6 +147,40 @@ func TestPuller(t *testing.T) {
 			pullPriority: func(offset int64) int64 {
 				return -offset
 			},
+			dirtyOffsets: []int64{},
+		},
+		{
+			name:      "No chunks finalization",
+			chunkSize: 4,
+			chunks:    3,
+			workers:   1,
+			data:      [][]byte{[]byte("test"), []byte("test"), []byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return 1
+			},
+			dirtyOffsets: []int64{},
+		},
+		{
+			name:      "Some chunks finalization",
+			chunkSize: 4,
+			chunks:    3,
+			workers:   2,
+			data:      [][]byte{[]byte("test"), []byte("test"), []byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return 1
+			},
+			dirtyOffsets: []int64{8},
+		},
+		{
+			name:      "All chunks finalization",
+			chunkSize: 4,
+			chunks:    3,
+			workers:   2,
+			data:      [][]byte{[]byte("test"), []byte("test"), []byte("test")},
+			pullPriority: func(offset int64) int64 {
+				return 1
+			},
+			dirtyOffsets: []int64{0, 4, 8},
 		},
 	}
 
@@ -187,6 +233,8 @@ func TestPuller(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
+			puller.FinalizePull(tc.dirtyOffsets)
 
 			if err := puller.Wait(); err != nil {
 				t.Fatal(err)

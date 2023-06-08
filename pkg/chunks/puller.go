@@ -10,8 +10,11 @@ import (
 type Puller struct {
 	backend io.ReaderAt
 
-	chunkSize int64
-	chunks    int64
+	chunkSize        int64
+	chunks           int64
+	finalized        bool
+	finalizePullLock sync.Mutex
+	finalizePullCond *sync.Cond
 
 	errChan chan error
 	ctx     context.Context
@@ -19,10 +22,10 @@ type Puller struct {
 
 	workersWg sync.WaitGroup
 
-	chunkIndexes []int64
-
-	nextChunk     int64
-	nextChunkLock sync.Mutex
+	chunkIndexes     []int64
+	chunkIndexesLock sync.Mutex
+	nextChunk        int64
+	nextChunkLock    sync.Mutex
 }
 
 func NewPuller(
@@ -43,7 +46,7 @@ func NewPuller(
 		return pullPriority(chunkIndexes[a]) > pullPriority(chunkIndexes[b])
 	})
 
-	return &Puller{
+	puller := &Puller{
 		backend: backend,
 
 		chunkSize: chunkSize,
@@ -55,6 +58,10 @@ func NewPuller(
 
 		chunkIndexes: chunkIndexes,
 	}
+
+	puller.finalizePullCond = sync.NewCond(&puller.finalizePullLock)
+
+	return puller
 }
 
 func (p *Puller) Open(workers int64) error {
@@ -82,11 +89,21 @@ func (p *Puller) pullChunks() {
 
 	for {
 		chunk := p.getNextChunk()
+
+		p.finalizePullLock.Lock()
+		for !p.finalized && chunk >= p.chunks {
+			p.finalizePullCond.Wait()
+			chunk = p.getNextChunk()
+		}
+		p.finalizePullLock.Unlock()
+
 		if chunk >= p.chunks {
 			break
 		}
 
+		p.chunkIndexesLock.Lock()
 		chunkIndex := p.chunkIndexes[chunk]
+		p.chunkIndexesLock.Unlock()
 
 		select {
 		case <-p.ctx.Done():
@@ -101,6 +118,26 @@ func (p *Puller) pullChunks() {
 			}
 		}
 	}
+}
+
+func (p *Puller) FinalizePull(dirtyOffsets []int64) {
+	p.finalizePullLock.Lock()
+	defer p.finalizePullLock.Unlock()
+
+	p.nextChunkLock.Lock()
+	defer p.nextChunkLock.Unlock()
+
+	p.chunkIndexesLock.Lock()
+	defer p.chunkIndexesLock.Unlock()
+
+	for _, dirtyOffset := range dirtyOffsets {
+		dirtyIndex := dirtyOffset / p.chunkSize
+		p.chunkIndexes = append(p.chunkIndexes[:p.nextChunk], append([]int64{dirtyIndex}, p.chunkIndexes[p.nextChunk:]...)...)
+	}
+
+	p.chunks += int64(len(dirtyOffsets))
+	p.finalized = true
+	p.finalizePullCond.Broadcast()
 }
 
 func (p *Puller) Wait() error {
