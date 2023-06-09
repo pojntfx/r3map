@@ -109,3 +109,16 @@ func (c *SyncedReadWriterAt) WriteAt(p []byte, off int64) (n int, err error) {
 
 	return n, nil
 }
+
+func (c *SyncedReadWriterAt) MarkAsRemote(dirtyOffsets []int64) {
+	c.chunksLock.Lock()
+	defer c.chunksLock.Unlock()
+
+	for _, off := range dirtyOffsets {
+		if chk, ok := c.chunks[off]; ok {
+			chk.lock.Lock()
+			chk.local = false
+			chk.lock.Unlock()
+		}
+	}
+}

@@ -12,12 +12,14 @@ func TestSyncedReadWriterAt(t *testing.T) {
 		chunkSize          int64
 		chunks             int64
 		input              []byte
+		modifiedInput      []byte
 		offset             int64
 		expectedData       []byte
 		expectedN          int
 		expectedReadErr    error
 		expectedWriteErr   error
 		writeToRemoteFirst bool
+		syncThenModify     bool
 	}{
 		{
 			name:               "Write to first chunk and read without error",
@@ -66,6 +68,20 @@ func TestSyncedReadWriterAt(t *testing.T) {
 			expectedReadErr:    nil,
 			expectedWriteErr:   nil,
 			writeToRemoteFirst: true,
+		},
+		{
+			name:               "Sync, modify remote, mark as remote, and resync",
+			chunkSize:          4,
+			chunks:             2,
+			input:              []byte("test"),
+			modifiedInput:      []byte("pass"),
+			offset:             4,
+			expectedData:       []byte("pass"),
+			expectedN:          4,
+			expectedReadErr:    nil,
+			expectedWriteErr:   nil,
+			writeToRemoteFirst: true,
+			syncThenModify:     true,
 		},
 	}
 
@@ -126,32 +142,64 @@ func TestSyncedReadWriterAt(t *testing.T) {
 				}
 			}
 
-			rbuf := make([]byte, len(tc.input))
-			rn, rerr := srw.ReadAt(rbuf, tc.offset)
-			if rerr != tc.expectedReadErr {
-				t.Errorf("ReadAt error: expected %v, got %v", tc.expectedReadErr, rerr)
-			}
+			if tc.syncThenModify {
+				rbuf := make([]byte, len(tc.input))
+				rn, rerr := srw.ReadAt(rbuf, tc.offset)
+				if rerr != tc.expectedReadErr {
+					t.Errorf("ReadAt error: expected %v, got %v", tc.expectedReadErr, rerr)
+				}
 
-			if rn != tc.expectedN {
-				t.Errorf("ReadAt bytes read: expected %v, got %v", tc.expectedN, rn)
-			}
+				if rn != tc.expectedN {
+					t.Errorf("ReadAt bytes read: expected %v, got %v", tc.expectedN, rn)
+				}
 
-			if !bytes.Equal(rbuf, tc.expectedData) {
-				t.Errorf("ReadAt data: expected %v, got %v", tc.expectedData, rbuf)
-			}
+				_, werr := remote.WriteAt(tc.modifiedInput, tc.offset)
+				if werr != nil {
+					t.Errorf("WriteAt to remote error: expected %v, got %v", nil, werr)
+				}
 
-			localBuf := make([]byte, len(tc.input))
-			_, err = local.ReadAt(localBuf, tc.offset)
-			if err != nil {
-				t.Fatal(err)
-			}
+				srw.MarkAsRemote([]int64{tc.offset})
 
-			if !bytes.Equal(localBuf, tc.input) {
-				t.Errorf("Data in local backend did not match expected. got %v, want %v", localBuf, tc.input)
-			}
+				rn, rerr = srw.ReadAt(rbuf, tc.offset)
+				if rerr != tc.expectedReadErr {
+					t.Errorf("ReadAt error after resync: expected %v, got %v", tc.expectedReadErr, rerr)
+				}
 
-			if _, ok := localOffsets[tc.offset]; !ok {
-				t.Errorf("Chunk at offset %d not marked as local", tc.offset)
+				if rn != tc.expectedN {
+					t.Errorf("ReadAt bytes read after resync: expected %v, got %v", tc.expectedN, rn)
+				}
+
+				if !bytes.Equal(rbuf, tc.expectedData) {
+					t.Errorf("ReadAt data after resync: expected %v, got %v", tc.expectedData, rbuf)
+				}
+			} else {
+				rbuf := make([]byte, len(tc.input))
+				rn, rerr := srw.ReadAt(rbuf, tc.offset)
+				if rerr != tc.expectedReadErr {
+					t.Errorf("ReadAt error: expected %v, got %v", tc.expectedReadErr, rerr)
+				}
+
+				if rn != tc.expectedN {
+					t.Errorf("ReadAt bytes read: expected %v, got %v", tc.expectedN, rn)
+				}
+
+				if !bytes.Equal(rbuf, tc.expectedData) {
+					t.Errorf("ReadAt data: expected %v, got %v", tc.expectedData, rbuf)
+				}
+
+				localBuf := make([]byte, len(tc.input))
+				_, err = local.ReadAt(localBuf, tc.offset)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if !bytes.Equal(localBuf, tc.input) {
+					t.Errorf("Data in local backend did not match expected. got %v, want %v", localBuf, tc.input)
+				}
+
+				if _, ok := localOffsets[tc.offset]; !ok {
+					t.Errorf("Chunk at offset %d not marked as local", tc.offset)
+				}
 			}
 		})
 	}
