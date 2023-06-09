@@ -10,6 +10,7 @@ import (
 type SourceRemote struct {
 	ReadAt func(context context.Context, length int, off int64) (r ReadAtResponse, err error)
 	Size   func(context context.Context) (int64, error)
+	Flush  func(context context.Context) ([]int64, error)
 }
 
 type Source struct {
@@ -41,4 +42,12 @@ func (b *Source) Size(context context.Context) (int64, error) {
 	}
 
 	return b.b.Size()
+}
+
+func (b *Source) Flush(context context.Context) ([]int64, error) {
+	if b.verbose {
+		log.Println("Flush()")
+	}
+
+	return []int64{}, nil
 }

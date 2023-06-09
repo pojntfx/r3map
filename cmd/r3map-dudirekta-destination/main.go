@@ -120,6 +120,9 @@ func main() {
 			*verbose,
 		},
 		size,
+		func() ([]int64, error) {
+			return peer.Flush(ctx)
+		},
 
 		local,
 

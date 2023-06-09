@@ -29,6 +29,8 @@ type Destination struct {
 	remote io.ReaderAt
 	size   int64
 
+	flush func() ([]int64, error)
+
 	local,
 	syncer backend.Backend
 
@@ -37,9 +39,10 @@ type Destination struct {
 	serverOptions *server.Options
 	clientOptions *client.Options
 
-	serverFile *os.File
-	puller     *chunks.Puller
-	dev        *device.Device
+	serverFile       *os.File
+	syncedReadWriter *chunks.SyncedReadWriterAt
+	puller           *chunks.Puller
+	dev              *device.Device
 
 	wg   sync.WaitGroup
 	errs chan error
@@ -50,6 +53,8 @@ func NewDestination(
 
 	remote io.ReaderAt,
 	size int64,
+
+	flush func() ([]int64, error),
 
 	local backend.Backend,
 
@@ -112,13 +117,13 @@ func (m *Destination) Open() (string, error) {
 
 	local := chunks.NewChunkedReadWriterAt(m.local, m.options.ChunkSize, chunkCount)
 
-	syncedReadWriter := chunks.NewSyncedReadWriterAt(m.remote, local, func(off int64) error {
+	m.syncedReadWriter = chunks.NewSyncedReadWriterAt(m.remote, local, func(off int64) error {
 		return nil
 	})
 
 	m.puller = chunks.NewPuller(
 		m.ctx,
-		syncedReadWriter,
+		m.syncedReadWriter,
 		m.options.ChunkSize,
 		chunkCount,
 		func(offset int64) int64 {
@@ -141,10 +146,7 @@ func (m *Destination) Open() (string, error) {
 		return "", err
 	}
 
-	// TODO: Call this after getting the dirty offsets from the remote flush and also make sure to mark the chunks as !local in the SyncedReadWriterAt
-	m.puller.FinalizePull([]int64{})
-
-	arbitraryReadWriter := chunks.NewArbitraryReadWriterAt(syncedReadWriter, m.options.ChunkSize)
+	arbitraryReadWriter := chunks.NewArbitraryReadWriterAt(m.syncedReadWriter, m.options.ChunkSize)
 
 	m.syncer = bbackend.NewReaderAtBackend(
 		arbitraryReadWriter,
@@ -185,6 +187,23 @@ func (m *Destination) Open() (string, error) {
 	}
 
 	return devicePath, nil
+}
+
+func (m *Destination) FinalizePull() error {
+	dirtyOffsets, err := m.flush()
+	if err != nil {
+		return err
+	}
+
+	if m.syncedReadWriter != nil {
+		m.syncedReadWriter.MarkAsRemote(dirtyOffsets)
+	}
+
+	if m.puller != nil {
+		m.puller.FinalizePull(dirtyOffsets)
+	}
+
+	return nil
 }
 
 func (m *Destination) Close() error {
