@@ -5,12 +5,14 @@ import (
 	"flag"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/chunks"
+	"github.com/pojntfx/r3map/pkg/device"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
 )
@@ -29,18 +31,54 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	devicePath, err := utils.FindUnusedNBDDevice()
+	if err != nil {
+		panic(err)
+	}
+
+	serverFile, err := os.Open(devicePath)
+	if err != nil {
+		panic(err)
+	}
+	defer serverFile.Close()
+
 	rb := backend.NewMemoryBackend(make([]byte, *size))
 
 	b := lbackend.NewReaderAtBackend(
-		chunks.NewChunkedReadWriterAt(
-			rb,
+		chunks.NewArbitraryReadWriterAt(
+			chunks.NewChunkedReadWriterAt( // TODO: Connect `Track()` and `Flush()` RPCs to keep track of writes after `Track()` here
+				rb,
+				*chunkSize,
+				*size / *chunkSize,
+			),
 			*chunkSize,
-			*size / *chunkSize,
 		),
 		rb.Size,
 		rb.Sync,
 		false,
 	)
+
+	dev := device.NewDevice(
+		b,
+		serverFile,
+
+		nil,
+		nil,
+	)
+	defer dev.Close()
+
+	errs := make(chan error)
+	go func() {
+		if err := dev.Wait(); err != nil {
+			errs <- err
+
+			return
+		}
+	}()
+
+	if err := dev.Open(); err != nil {
+		panic(err)
+	}
 
 	clients := 0
 
@@ -73,17 +111,16 @@ func main() {
 
 	log.Println("Listening on", lis.Addr())
 
-	for {
-		func() {
+	go func() {
+		for {
 			conn, err := lis.Accept()
 			if err != nil {
 				log.Println("could not accept connection, continuing:", err)
 
-				return
+				continue
 			}
 
 			go func() {
-
 				defer func() {
 					_ = conn.Close()
 
@@ -95,9 +132,17 @@ func main() {
 				}()
 
 				if err := registry.Link(conn); err != nil {
-					panic(err)
+					errs <- err
+
+					return
 				}
 			}()
-		}()
+		}
+	}()
+
+	for err := range errs {
+		if err != nil {
+			panic(err)
+		}
 	}
 }

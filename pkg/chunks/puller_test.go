@@ -150,7 +150,7 @@ func TestPuller(t *testing.T) {
 			dirtyOffsets: []int64{},
 		},
 		{
-			name:      "No chunks finalization",
+			name:      "Pull with no chunks finalization",
 			chunkSize: 4,
 			chunks:    3,
 			workers:   1,
@@ -161,7 +161,7 @@ func TestPuller(t *testing.T) {
 			dirtyOffsets: []int64{},
 		},
 		{
-			name:      "Some chunks finalization",
+			name:      "Pull with some chunks finalization",
 			chunkSize: 4,
 			chunks:    3,
 			workers:   2,
@@ -172,7 +172,7 @@ func TestPuller(t *testing.T) {
 			dirtyOffsets: []int64{8},
 		},
 		{
-			name:      "All chunks finalization",
+			name:      "Pull with all chunks finalization",
 			chunkSize: 4,
 			chunks:    3,
 			workers:   2,
