@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bufio"
 	"errors"
 	"os"
 	"path"
@@ -11,6 +12,7 @@ import (
 
 var (
 	ErrNoUnusedNBDDeviceFound = errors.New("no unused NBD devices found")
+	ErrNoNBDModuleLoaded      = errors.New("no NBD module loaded")
 )
 
 func FindUnusedNBDDevice() (string, error) {
@@ -35,5 +37,18 @@ func FindUnusedNBDDevice() (string, error) {
 		}
 	}
 
-	return "", ErrNoUnusedNBDDeviceFound
+	file, err := os.Open(filepath.Join("/proc", "modules"))
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		if strings.Contains(scanner.Text(), "nbd") {
+			return "", ErrNoUnusedNBDDeviceFound
+		}
+	}
+
+	return "", ErrNoNBDModuleLoaded
 }
