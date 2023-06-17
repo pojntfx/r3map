@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"reflect"
+	"sort"
 	"testing"
 )
 
@@ -13,50 +14,64 @@ func TestTrackingReadWriterAt(t *testing.T) {
 		inputs          [][]byte
 		offsets         []int64
 		rwBufferSize    int
-		expectedData    [][]byte
-		expectedOffsets []int64
-		readErr         error
-		writeErr        error
+		expectedData    [][][]byte
+		expectedOffsets [][]int64
+		preTrackWrites  int
+		flushEachWrite  []int
 	}{
 		{
 			name:            "Write and track one chunk",
 			inputs:          [][]byte{[]byte("1234")},
 			offsets:         []int64{0},
 			rwBufferSize:    4,
-			expectedData:    [][]byte{[]byte("1234")},
-			expectedOffsets: []int64{0},
-			readErr:         nil,
-			writeErr:        nil,
+			expectedData:    [][][]byte{{[]byte("1234")}},
+			expectedOffsets: [][]int64{{0}},
+			flushEachWrite:  []int{1},
 		},
 		{
 			name:            "Write and track two chunks",
 			inputs:          [][]byte{[]byte("1234"), []byte("5678")},
 			offsets:         []int64{0, 4},
 			rwBufferSize:    4,
-			expectedData:    [][]byte{[]byte("1234"), []byte("5678")},
-			expectedOffsets: []int64{0, 4},
-			readErr:         nil,
-			writeErr:        nil,
+			expectedData:    [][][]byte{{[]byte("1234"), []byte("5678")}},
+			expectedOffsets: [][]int64{{0, 4}},
+			flushEachWrite:  []int{2},
 		},
 		{
 			name:            "Write and track three chunks",
 			inputs:          [][]byte{[]byte("1234"), []byte("5678"), []byte("9012")},
 			offsets:         []int64{0, 4, 8},
 			rwBufferSize:    4,
-			expectedData:    [][]byte{[]byte("1234"), []byte("5678"), []byte("9012")},
-			expectedOffsets: []int64{0, 4, 8},
-			readErr:         nil,
-			writeErr:        nil,
+			expectedData:    [][][]byte{{[]byte("1234"), []byte("5678"), []byte("9012")}},
+			expectedOffsets: [][]int64{{0, 4, 8}},
+			flushEachWrite:  []int{3},
 		},
 		{
-			name:            "Write and track same offset twice",
+			name:            "Write to the same offset twice",
 			inputs:          [][]byte{[]byte("1234"), []byte("5678")},
 			offsets:         []int64{0, 0},
 			rwBufferSize:    4,
-			expectedData:    [][]byte{[]byte("5678")},
-			expectedOffsets: []int64{0},
-			readErr:         nil,
-			writeErr:        nil,
+			expectedData:    [][][]byte{{[]byte("5678")}},
+			expectedOffsets: [][]int64{{0}},
+			flushEachWrite:  []int{2},
+		},
+		{
+			name:            "Track only after calling Track",
+			inputs:          [][]byte{[]byte("1234"), []byte("5678")},
+			offsets:         []int64{0, 4},
+			rwBufferSize:    4,
+			expectedData:    [][][]byte{{[]byte("5678")}},
+			expectedOffsets: [][]int64{{4}},
+			preTrackWrites:  1,
+		},
+		{
+			name:            "Writing and flushing twice only returns the second delta",
+			inputs:          [][]byte{[]byte("1234"), []byte("5678"), []byte("9012")},
+			offsets:         []int64{0, 4, 8},
+			rwBufferSize:    4,
+			expectedData:    [][][]byte{{[]byte("1234"), []byte("5678")}, {[]byte("9012")}},
+			expectedOffsets: [][]int64{{0, 4}, {8}},
+			flushEachWrite:  []int{2, 1},
 		},
 	}
 
@@ -70,43 +85,65 @@ func TestTrackingReadWriterAt(t *testing.T) {
 
 			trw := NewTrackingReadWriterAt(f)
 
-			if len(tc.inputs) > 0 {
+			if tc.preTrackWrites > 0 {
+				for i := 0; i < tc.preTrackWrites; i++ {
+					_, err := trw.WriteAt(tc.inputs[i], tc.offsets[i])
+					if err != nil {
+						t.Errorf("Pre-Track WriteAt error: got %v", err)
+					}
+				}
+			}
+
+			start := tc.preTrackWrites
+			for i, flushEachWrite := range tc.flushEachWrite {
 				trw.Track()
 
-				for i, input := range tc.inputs {
-					wn, werr := trw.WriteAt(input, tc.offsets[i])
-					if werr != tc.writeErr {
-						t.Errorf("WriteAt error: expected %v, got %v", tc.writeErr, werr)
+				for j := start; j < start+flushEachWrite; j++ {
+					wn, err := trw.WriteAt(tc.inputs[j], tc.offsets[j])
+					if err != nil {
+						t.Errorf("WriteAt error: got %v", err)
 					}
 
-					if wn != len(input) {
-						t.Errorf("WriteAt bytes written: expected %v, got %v", len(input), wn)
+					if wn != len(tc.inputs[j]) {
+						t.Errorf("WriteAt bytes written: expected %v, got %v", len(tc.inputs[j]), wn)
 					}
 				}
 
 				dirtyOffsets := trw.Flush()
-				if !reflect.DeepEqual(tc.expectedOffsets, dirtyOffsets) {
-					t.Errorf("Flush offsets: expected %v, got %v", tc.expectedOffsets, dirtyOffsets)
+
+				sort.Slice(tc.expectedOffsets[i], func(x, y int) bool { return tc.expectedOffsets[i][x] < tc.expectedOffsets[i][y] })
+				sort.Slice(dirtyOffsets, func(x, y int) bool { return dirtyOffsets[x] < dirtyOffsets[y] })
+
+				if !reflect.DeepEqual(tc.expectedOffsets[i], dirtyOffsets) {
+					t.Errorf("Flush offsets: expected %v, got %v", tc.expectedOffsets[i], dirtyOffsets)
 				}
+
+				start += flushEachWrite
 			}
 
-			if len(tc.expectedData) > 0 || tc.readErr != nil {
-				rbuf := make([]byte, tc.rwBufferSize)
-				for i, expected := range tc.expectedData {
-					rn, rerr := trw.ReadAt(rbuf, tc.offsets[i])
-					if rerr != tc.readErr {
-						t.Errorf("ReadAt error: expected %v, got %v", tc.readErr, rerr)
+			rbuf := make([]byte, tc.rwBufferSize)
+			start = 0
+			for i, flushEachWrite := range tc.flushEachWrite {
+				for j := start; j < start+flushEachWrite; j++ {
+					rn, err := trw.ReadAt(rbuf, tc.offsets[j])
+					if err != nil {
+						t.Errorf("ReadAt error: got %v", err)
 					}
 
-					if rn != len(expected) {
-						t.Errorf("ReadAt bytes read: expected %v, got %v", len(expected), rn)
-					}
+					if j-start < len(tc.expectedData[i]) {
+						expected := tc.expectedData[i][j-start]
+						if rn != len(expected) {
+							t.Errorf("ReadAt bytes read: expected %v, got %v", len(expected), rn)
+						}
 
-					rbuf = rbuf[:rn]
-					if !bytes.Equal(rbuf, expected) {
-						t.Errorf("ReadAt data: expected %v, got %v", expected, rbuf)
+						rbuf = rbuf[:rn]
+						if !bytes.Equal(rbuf, expected) {
+							t.Errorf("ReadAt data: expected %v, got %v", expected, rbuf)
+						}
 					}
 				}
+
+				start += flushEachWrite
 			}
 		})
 	}
