@@ -48,6 +48,16 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			readErr:         nil,
 			writeErr:        nil,
 		},
+		{
+			name:            "Write and track same offset twice",
+			inputs:          [][]byte{[]byte("1234"), []byte("5678")},
+			offsets:         []int64{0, 0},
+			rwBufferSize:    4,
+			expectedData:    [][]byte{[]byte("5678")},
+			expectedOffsets: []int64{0},
+			readErr:         nil,
+			writeErr:        nil,
+		},
 	}
 
 	for _, tc := range tests {
