@@ -44,10 +44,12 @@ func main() {
 
 	rb := backend.NewMemoryBackend(make([]byte, *size))
 
+	tr := chunks.NewTrackingReadWriterAt(rb)
+
 	b := lbackend.NewReaderAtBackend(
 		chunks.NewArbitraryReadWriterAt(
-			chunks.NewChunkedReadWriterAt( // TODO: Connect `Track()` and `Flush()` RPCs to keep track of writes after `Track()` here
-				rb,
+			chunks.NewChunkedReadWriterAt(
+				tr,
 				*chunkSize,
 				*size / *chunkSize,
 			),
@@ -83,7 +85,17 @@ func main() {
 	clients := 0
 
 	registry := rpc.NewRegistry(
-		services.NewBackend(b, *verbose),
+		services.NewSource(
+			b,
+			*verbose,
+			func() ([]int64, error) {
+				return tr.Flush(), nil
+			},
+			func() error {
+				tr.Track()
+
+				return nil
+			}),
 		struct{}{},
 
 		time.Second*10,
@@ -132,9 +144,7 @@ func main() {
 				}()
 
 				if err := registry.Link(conn); err != nil {
-					errs <- err
-
-					return
+					panic(err)
 				}
 			}()
 		}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -120,6 +121,10 @@ func main() {
 			*verbose,
 		},
 		size,
+
+		func() error {
+			return peer.Track(ctx)
+		},
 		func() ([]int64, error) {
 			return peer.Flush(ctx)
 		},
@@ -155,6 +160,18 @@ func main() {
 		panic(err)
 	}
 	defer deviceFile.Close()
+
+	go func() {
+		log.Println("Press <ENTER> to finalize pull")
+
+		bufio.NewScanner(os.Stdin).Scan()
+
+		log.Println("Finalizing pull")
+
+		if err := mnt.FinalizePull(); err != nil {
+			panic(err)
+		}
+	}()
 
 	if _, err := io.CopyN(
 		io.NewOffsetWriter(
