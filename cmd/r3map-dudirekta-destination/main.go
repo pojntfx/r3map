@@ -122,9 +122,6 @@ func main() {
 		},
 		size,
 
-		func() error {
-			return peer.Track(ctx)
-		},
 		func() ([]int64, error) {
 			return peer.Flush(ctx)
 		},

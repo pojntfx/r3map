@@ -91,11 +91,7 @@ func main() {
 			func() ([]int64, error) {
 				return tr.Flush(), nil
 			},
-			func() error {
-				tr.Track()
-
-				return nil
-			}),
+		),
 		struct{}{},
 
 		time.Second*10,
@@ -106,11 +102,15 @@ func main() {
 				clients++
 
 				log.Printf("%v clients connected", clients)
+
+				tr.Track()
 			},
 			OnClientDisconnect: func(remoteID string) {
 				clients--
 
 				log.Printf("%v clients connected", clients)
+
+				// TODO: If a remote called `Flush()` before, shut down
 			},
 		},
 	)

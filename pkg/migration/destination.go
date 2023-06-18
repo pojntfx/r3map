@@ -55,7 +55,6 @@ func NewDestination(
 	remote io.ReaderAt,
 	size int64,
 
-	track func() error,
 	flush func() ([]int64, error),
 
 	local backend.Backend,
@@ -83,7 +82,6 @@ func NewDestination(
 		remote: remote,
 		size:   size,
 
-		track: track,
 		flush: flush,
 
 		local: local,
@@ -146,10 +144,6 @@ func (m *Destination) Open() (string, error) {
 			return
 		}
 	}()
-
-	if err := m.track(); err != nil {
-		return "", err
-	}
 
 	if err := m.puller.Open(m.options.PullWorkers); err != nil {
 		return "", err
