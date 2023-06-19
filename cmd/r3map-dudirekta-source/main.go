@@ -90,7 +90,15 @@ func main() {
 			b,
 			*verbose,
 			func() ([]int64, error) {
-				// TODO: Once this is turned into a reusable module, add a `OnBeforeFlush` callback here
+				// TODO: Once this is turned into a reusable module, add a `OnBeforeFlush` callback that must be called before the block below is executed
+
+				if err := dev.Close(); err != nil {
+					return []int64{}, err
+				}
+
+				if err := serverFile.Close(); err != nil {
+					return []int64{}, err
+				}
 
 				rv := tr.Flush()
 
@@ -165,8 +173,6 @@ func main() {
 	for err := range errs {
 		if err != nil {
 			panic(err)
-
-			continue
 		}
 
 		return

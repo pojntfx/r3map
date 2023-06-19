@@ -146,7 +146,11 @@ func (d *Device) Close() error {
 		_ = d.sf.Close()
 	}
 
-	close(d.errs)
+	if d.errs != nil {
+		close(d.errs)
+
+		d.errs = nil
+	}
 
 	return nil
 }

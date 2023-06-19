@@ -25,7 +25,7 @@ type Pusher struct {
 
 	workerWg  sync.WaitGroup
 	workerSem chan struct{}
-	errChan   chan error
+	errs      chan error
 }
 
 func NewPusher(
@@ -49,14 +49,14 @@ func NewPusher(
 
 		pushInterval: pushInterval,
 
-		errChan: make(chan error),
+		errs: make(chan error),
 	}
 }
 
 func (p *Pusher) Open(workers int64) error {
 	p.pushTicker = time.NewTicker(p.pushInterval)
 	p.workerSem = make(chan struct{}, workers)
-	p.errChan = make(chan error)
+	p.errs = make(chan error)
 
 	go p.pushChunks()
 
@@ -79,7 +79,7 @@ func (p *Pusher) pushChunks() {
 			p.workerWg.Add(1)
 
 			if _, err := p.Flush(); err != nil {
-				p.errChan <- err
+				p.errs <- err
 			}
 
 			p.workerWg.Done()
@@ -121,7 +121,7 @@ func (p *Pusher) Flush() (int, error) {
 			if _, err := p.local.ReadAt(b, off); err != nil {
 				lock.Unlock()
 
-				p.errChan <- err
+				p.errs <- err
 
 				<-p.workerSem
 
@@ -131,7 +131,7 @@ func (p *Pusher) Flush() (int, error) {
 			if _, err := p.remote.WriteAt(b, off); err != nil {
 				lock.Unlock()
 
-				p.errChan <- err
+				p.errs <- err
 
 				<-p.workerSem
 
@@ -154,7 +154,7 @@ func (p *Pusher) Flush() (int, error) {
 }
 
 func (p *Pusher) Wait() error {
-	for err := range p.errChan {
+	for err := range p.errs {
 		if err != nil {
 			_ = p.Close()
 
@@ -174,7 +174,11 @@ func (p *Pusher) Close() error {
 	p.pushTicker.Stop()
 	p.workerWg.Wait()
 
-	close(p.errChan)
+	if p.errs != nil {
+		close(p.errs)
+
+		p.errs = nil
+	}
 
 	return nil
 }

@@ -250,7 +250,11 @@ func (m *Destination) Close() error {
 
 	m.wg.Wait()
 
-	close(m.errs)
+	if m.errs != nil {
+		close(m.errs)
+
+		m.errs = nil
+	}
 
 	return nil
 }

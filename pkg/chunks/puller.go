@@ -16,9 +16,9 @@ type Puller struct {
 	finalizePullLock sync.Mutex
 	finalizePullCond *sync.Cond
 
-	errChan chan error
-	ctx     context.Context
-	cancel  context.CancelFunc
+	errs   chan error
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	workersWg sync.WaitGroup
 
@@ -52,9 +52,9 @@ func NewPuller(
 		chunkSize: chunkSize,
 		chunks:    chunks,
 
-		errChan: make(chan error),
-		ctx:     ctx,
-		cancel:  cancel,
+		errs:   make(chan error),
+		ctx:    ctx,
+		cancel: cancel,
 
 		chunkIndexes: chunkIndexes,
 	}
@@ -112,7 +112,7 @@ func (p *Puller) pullChunks() {
 		default:
 			_, err := p.backend.ReadAt(make([]byte, p.chunkSize), chunkIndex*p.chunkSize)
 			if err != nil {
-				p.errChan <- err
+				p.errs <- err
 
 				return
 			}
@@ -143,10 +143,15 @@ func (p *Puller) FinalizePull(dirtyOffsets []int64) {
 func (p *Puller) Wait() error {
 	go func() {
 		p.workersWg.Wait()
-		close(p.errChan)
+
+		if p.errs != nil {
+			close(p.errs)
+
+			p.errs = nil
+		}
 	}()
 
-	for err := range p.errChan {
+	for err := range p.errs {
 		if err != nil {
 			_ = p.Close()
 
