@@ -44,10 +44,7 @@ func main() {
 
 	rb := backend.NewMemoryBackend(make([]byte, *size))
 
-	flushed := false
-	tr := chunks.NewTrackingReadWriterAt(rb, func() {
-		flushed = true
-	})
+	tr := chunks.NewTrackingReadWriterAt(rb)
 
 	b := lbackend.NewReaderAtBackend(
 		chunks.NewArbitraryReadWriterAt(
@@ -87,12 +84,19 @@ func main() {
 
 	clients := 0
 
+	flushed := false
 	registry := rpc.NewRegistry(
 		services.NewSource(
 			b,
 			*verbose,
 			func() ([]int64, error) {
-				return tr.Flush(), nil
+				// TODO: Once this is turned into a reusable module, add a `OnBeforeFlush` callback here
+
+				rv := tr.Flush()
+
+				flushed = true
+
+				return rv, nil
 			},
 		),
 		struct{}{},
