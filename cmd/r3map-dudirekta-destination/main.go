@@ -199,18 +199,17 @@ func main() {
 	}
 	defer deviceFile.Close()
 
-	go func() {
-		log.Println("Press <ENTER> to finalize pull")
+	log.Println("Press <ENTER> to finalize pull")
 
-		bufio.NewScanner(os.Stdin).Scan()
+	bufio.NewScanner(os.Stdin).Scan()
 
-		bar.Describe("Flushing")
+	bar.Describe("Flushing")
 
-		if err := mnt.FinalizePull(); err != nil {
-			panic(err)
-		}
-	}()
+	if err := mnt.FinalizePull(); err != nil {
+		panic(err)
+	}
 
+	// Before we can access this, we _need_ to have called `FinalizePull`
 	if _, err := io.CopyN(
 		io.NewOffsetWriter(
 			output,
