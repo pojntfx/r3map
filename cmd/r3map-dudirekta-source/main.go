@@ -44,7 +44,10 @@ func main() {
 
 	rb := backend.NewMemoryBackend(make([]byte, *size))
 
-	tr := chunks.NewTrackingReadWriterAt(rb)
+	flushed := false
+	tr := chunks.NewTrackingReadWriterAt(rb, func() {
+		flushed = true
+	})
 
 	b := lbackend.NewReaderAtBackend(
 		chunks.NewArbitraryReadWriterAt(
@@ -110,7 +113,10 @@ func main() {
 
 				log.Printf("%v clients connected", clients)
 
-				// TODO: If a remote called `Flush()` before, shut down
+				if flushed {
+					// Stop seeding
+					errs <- nil
+				}
 			},
 		},
 	)
@@ -127,7 +133,9 @@ func main() {
 		for {
 			conn, err := lis.Accept()
 			if err != nil {
-				log.Println("could not accept connection, continuing:", err)
+				if !utils.IsClosedErr(err) {
+					log.Println("could not accept connection, continuing:", err)
+				}
 
 				continue
 			}
@@ -153,6 +161,10 @@ func main() {
 	for err := range errs {
 		if err != nil {
 			panic(err)
+
+			continue
 		}
+
+		return
 	}
 }

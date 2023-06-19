@@ -77,7 +77,9 @@ func main() {
 		func() {
 			conn, err := lis.Accept()
 			if err != nil {
-				log.Println("could not accept connection, continuing:", err)
+				if !utils.IsClosedErr(err) {
+					log.Println("could not accept connection, continuing:", err)
+				}
 
 				return
 			}

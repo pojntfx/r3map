@@ -9,12 +9,17 @@ type TrackingReadWriterAt struct {
 	trackingLock sync.Mutex
 
 	dirtyOffsets map[int64]struct{}
+
+	onFlushed func()
 }
 
-func NewTrackingReadWriterAt(backend ReadWriterAt) *TrackingReadWriterAt {
+func NewTrackingReadWriterAt(backend ReadWriterAt, onFlushed func()) *TrackingReadWriterAt {
 	return &TrackingReadWriterAt{
-		backend:      backend,
+		backend: backend,
+
 		dirtyOffsets: map[int64]struct{}{},
+
+		onFlushed: onFlushed,
 	}
 }
 
@@ -44,6 +49,10 @@ func (c *TrackingReadWriterAt) Flush() []int64 {
 
 	c.dirtyOffsets = map[int64]struct{}{}
 	c.tracking = false
+
+	if hook := c.onFlushed; hook != nil {
+		hook()
+	}
 
 	return rv
 }

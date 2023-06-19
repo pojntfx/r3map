@@ -18,6 +18,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 		expectedOffsets [][]int64
 		preTrackWrites  int
 		flushEachWrite  []int
+		expectedFlushes int
 	}{
 		{
 			name:            "Write and track one chunk",
@@ -27,6 +28,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			expectedData:    [][][]byte{{[]byte("1234")}},
 			expectedOffsets: [][]int64{{0}},
 			flushEachWrite:  []int{1},
+			expectedFlushes: 1,
 		},
 		{
 			name:            "Write and track two chunks",
@@ -36,6 +38,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			expectedData:    [][][]byte{{[]byte("1234"), []byte("5678")}},
 			expectedOffsets: [][]int64{{0, 4}},
 			flushEachWrite:  []int{2},
+			expectedFlushes: 1,
 		},
 		{
 			name:            "Write and track three chunks",
@@ -45,6 +48,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			expectedData:    [][][]byte{{[]byte("1234"), []byte("5678"), []byte("9012")}},
 			expectedOffsets: [][]int64{{0, 4, 8}},
 			flushEachWrite:  []int{3},
+			expectedFlushes: 1,
 		},
 		{
 			name:            "Write to the same offset twice",
@@ -54,6 +58,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			expectedData:    [][][]byte{{[]byte("5678")}},
 			expectedOffsets: [][]int64{{0}},
 			flushEachWrite:  []int{2},
+			expectedFlushes: 1,
 		},
 		{
 			name:            "Track only after calling Track",
@@ -63,6 +68,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			expectedData:    [][][]byte{{[]byte("5678")}},
 			expectedOffsets: [][]int64{{4}},
 			preTrackWrites:  1,
+			expectedFlushes: 0,
 		},
 		{
 			name:            "Writing and flushing twice only returns the second delta",
@@ -72,6 +78,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			expectedData:    [][][]byte{{[]byte("1234"), []byte("5678")}, {[]byte("9012")}},
 			expectedOffsets: [][]int64{{0, 4}, {8}},
 			flushEachWrite:  []int{2, 1},
+			expectedFlushes: 2,
 		},
 	}
 
@@ -83,7 +90,10 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			}
 			defer os.RemoveAll(f.Name())
 
-			trw := NewTrackingReadWriterAt(f)
+			flushCount := 0
+			trw := NewTrackingReadWriterAt(f, func() {
+				flushCount++
+			})
 
 			if tc.preTrackWrites > 0 {
 				for i := 0; i < tc.preTrackWrites; i++ {
@@ -144,6 +154,10 @@ func TestTrackingReadWriterAt(t *testing.T) {
 				}
 
 				start += flushEachWrite
+			}
+
+			if flushCount != tc.expectedFlushes {
+				t.Errorf("onFlushed calls: expected %v, got %v", tc.expectedFlushes, flushCount)
 			}
 		})
 	}
