@@ -25,6 +25,7 @@ type Options struct {
 
 type Hooks struct {
 	OnChunkIsLocal func(off int64) error
+	OnAfterFlush   func(dirtyOffsets []int64) error
 }
 
 type Destination struct {
@@ -211,6 +212,12 @@ func (m *Destination) FinalizePull() error {
 	dirtyOffsets, err := m.flush()
 	if err != nil {
 		return err
+	}
+
+	if hook := m.hooks.OnAfterFlush; hook != nil {
+		if err := hook(dirtyOffsets); err != nil {
+			return err
+		}
 	}
 
 	if m.syncedReadWriter != nil {

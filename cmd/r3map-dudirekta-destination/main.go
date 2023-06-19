@@ -113,8 +113,10 @@ func main() {
 
 	output := backend.NewMemoryBackend(make([]byte, size))
 
+	chunkCount := int(size / *chunkSize)
+
 	bar := progressbar.NewOptions(
-		int(size / *chunkSize),
+		chunkCount,
 		progressbar.OptionSetDescription("Pulling"),
 		progressbar.OptionSetItsString("chunk"),
 		progressbar.OptionSetWriter(os.Stderr),
@@ -162,6 +164,17 @@ func main() {
 
 				return nil
 			},
+			OnAfterFlush: func(dirtyOffsets []int64) error {
+				bar.Clear()
+
+				log.Printf("Invalidated %v dirty offsets", len(dirtyOffsets))
+
+				bar.Describe("Finalizing")
+
+				bar.ChangeMax(chunkCount + len(dirtyOffsets))
+
+				return nil
+			},
 		},
 
 		nil,
@@ -191,7 +204,7 @@ func main() {
 
 		bufio.NewScanner(os.Stdin).Scan()
 
-		bar.Describe("Finalizing")
+		bar.Describe("Flushing")
 
 		if err := mnt.FinalizePull(); err != nil {
 			panic(err)
