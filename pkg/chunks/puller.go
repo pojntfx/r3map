@@ -13,7 +13,6 @@ type Puller struct {
 	chunkSize        int64
 	chunks           int64
 	finalized        bool
-	finalizePullLock sync.Mutex
 	finalizePullCond *sync.Cond
 
 	errs   chan error
@@ -22,10 +21,10 @@ type Puller struct {
 
 	workersWg sync.WaitGroup
 
-	chunkIndexes     []int64
-	chunkIndexesLock sync.Mutex
-	nextChunk        int64
-	nextChunkLock    sync.Mutex
+	chunkIndexes              []int64
+	chunkIndexesLock          sync.Mutex
+	nextChunk                 int64
+	nextChunkAndFinalizedLock sync.Mutex
 }
 
 func NewPuller(
@@ -59,7 +58,7 @@ func NewPuller(
 		chunkIndexes: chunkIndexes,
 	}
 
-	puller.finalizePullCond = sync.NewCond(&puller.finalizePullLock)
+	puller.finalizePullCond = sync.NewCond(&sync.Mutex{})
 
 	return puller
 }
@@ -75,13 +74,24 @@ func (p *Puller) Open(workers int64) error {
 }
 
 func (p *Puller) getNextChunk() int64 {
-	p.nextChunkLock.Lock()
-	defer p.nextChunkLock.Unlock()
+	p.nextChunkAndFinalizedLock.Lock()
 
-	chunk := p.nextChunk
+	if !p.finalized && p.nextChunk >= p.chunks-1 {
+		p.finalizePullCond.L.Lock()
+
+		p.nextChunkAndFinalizedLock.Unlock()
+		p.finalizePullCond.Wait()
+		p.nextChunkAndFinalizedLock.Lock()
+
+		p.finalizePullCond.L.Unlock()
+	}
+
+	nextChunk := p.nextChunk
 	p.nextChunk++
 
-	return chunk
+	p.nextChunkAndFinalizedLock.Unlock()
+
+	return nextChunk
 }
 
 func (p *Puller) pullChunks() {
@@ -89,13 +99,6 @@ func (p *Puller) pullChunks() {
 
 	for {
 		chunk := p.getNextChunk()
-
-		p.finalizePullLock.Lock()
-		for !p.finalized && chunk >= p.chunks {
-			p.finalizePullCond.Wait()
-			chunk = p.getNextChunk()
-		}
-		p.finalizePullLock.Unlock()
 
 		if chunk >= p.chunks {
 			break
@@ -121,23 +124,25 @@ func (p *Puller) pullChunks() {
 }
 
 func (p *Puller) FinalizePull(dirtyOffsets []int64) {
-	p.finalizePullLock.Lock()
-	defer p.finalizePullLock.Unlock()
-
-	p.nextChunkLock.Lock()
-	defer p.nextChunkLock.Unlock()
+	p.nextChunkAndFinalizedLock.Lock()
+	defer p.nextChunkAndFinalizedLock.Unlock()
 
 	p.chunkIndexesLock.Lock()
 	defer p.chunkIndexesLock.Unlock()
 
+	// Insert the dirty chunk indexes at the current pull position, so that they will be pulled immediately next
 	for _, dirtyOffset := range dirtyOffsets {
 		dirtyIndex := dirtyOffset / p.chunkSize
-		p.chunkIndexes = append(p.chunkIndexes[:p.nextChunk], append([]int64{dirtyIndex}, p.chunkIndexes[p.nextChunk:]...)...)
+		p.chunkIndexes = append(p.chunkIndexes[:p.nextChunk+1], append([]int64{dirtyIndex}, p.chunkIndexes[p.nextChunk+1:]...)...)
 	}
 
 	p.chunks += int64(len(dirtyOffsets))
+
 	p.finalized = true
+
+	p.finalizePullCond.L.Lock()
 	p.finalizePullCond.Broadcast()
+	p.finalizePullCond.L.Unlock()
 }
 
 func (p *Puller) Wait() error {
