@@ -23,19 +23,23 @@ type Options struct {
 	Verbose bool
 }
 
+type Hooks struct {
+	OnChunkIsLocal func(off int64) error
+}
+
 type Destination struct {
 	ctx context.Context
 
 	remote io.ReaderAt
 	size   int64
 
-	track func() error
 	flush func() ([]int64, error)
 
 	local,
 	syncer backend.Backend
 
 	options *Options
+	hooks   *Hooks
 
 	serverOptions *server.Options
 	clientOptions *client.Options
@@ -60,6 +64,7 @@ func NewDestination(
 	local backend.Backend,
 
 	options *Options,
+	hooks *Hooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
@@ -76,6 +81,10 @@ func NewDestination(
 		options.PullWorkers = 512
 	}
 
+	if hooks == nil {
+		hooks = &Hooks{}
+	}
+
 	return &Destination{
 		ctx: ctx,
 
@@ -87,6 +96,7 @@ func NewDestination(
 		local: local,
 
 		options: options,
+		hooks:   hooks,
 
 		serverOptions: serverOptions,
 		clientOptions: clientOptions,
@@ -120,7 +130,12 @@ func (m *Destination) Open() (string, error) {
 
 	local := chunks.NewChunkedReadWriterAt(m.local, m.options.ChunkSize, chunkCount)
 
+	hook := m.hooks.OnChunkIsLocal
 	m.syncedReadWriter = chunks.NewSyncedReadWriterAt(m.remote, local, func(off int64) error {
+		if hook != nil {
+			return hook(off)
+		}
+
 		return nil
 	})
 

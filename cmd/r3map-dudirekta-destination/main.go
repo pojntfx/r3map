@@ -16,6 +16,7 @@ import (
 	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
+	"github.com/schollz/progressbar/v3"
 )
 
 type rpcReaderAt struct {
@@ -112,6 +113,26 @@ func main() {
 
 	output := backend.NewMemoryBackend(make([]byte, size))
 
+	bar := progressbar.NewOptions(
+		int(size / *chunkSize),
+		progressbar.OptionSetDescription("Pulling"),
+		progressbar.OptionSetItsString("chunk"),
+		progressbar.OptionSetWriter(os.Stderr),
+		progressbar.OptionThrottle(100*time.Millisecond),
+		progressbar.OptionShowCount(),
+		progressbar.OptionShowIts(),
+		progressbar.OptionFullWidth(),
+		// VT-100 compatibility
+		progressbar.OptionUseANSICodes(true),
+		progressbar.OptionSetTheme(progressbar.Theme{
+			Saucer:        "=",
+			SaucerHead:    ">",
+			SaucerPadding: " ",
+			BarStart:      "[",
+			BarEnd:        "]",
+		}),
+	)
+
 	mnt := migration.NewDestination(
 		ctx,
 
@@ -134,6 +155,13 @@ func main() {
 			PullWorkers: *pullWorkers,
 
 			Verbose: *verbose,
+		},
+		&migration.Hooks{
+			OnChunkIsLocal: func(off int64) error {
+				bar.Add(1)
+
+				return nil
+			},
 		},
 
 		nil,
@@ -163,7 +191,7 @@ func main() {
 
 		bufio.NewScanner(os.Stdin).Scan()
 
-		log.Println("Finalizing pull")
+		bar.Describe("Finalizing")
 
 		if err := mnt.FinalizePull(); err != nil {
 			panic(err)

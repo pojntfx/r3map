@@ -10,6 +10,7 @@ require (
 	github.com/pojntfx/dudirekta v0.5.0
 	github.com/pojntfx/go-nbd v0.1.9
 	github.com/redis/go-redis/v9 v9.0.4
+	github.com/schollz/progressbar/v3 v3.13.1
 )
 
 require (
@@ -19,13 +20,17 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed // indirect
 	github.com/klauspost/cpuid/v2 v2.0.3 // indirect
+	github.com/mattn/go-runewidth v0.0.14 // indirect
+	github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/pilebones/go-udev v0.9.0 // indirect
+	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/stretchr/testify v1.8.3 // indirect
 	github.com/teivah/broadcast v0.1.0 // indirect
 	golang.org/x/crypto v0.4.0 // indirect
 	golang.org/x/net v0.4.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
+	golang.org/x/term v0.6.0 // indirect
 	golang.org/x/text v0.5.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 )
