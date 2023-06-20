@@ -151,14 +151,14 @@ func main() {
 
 		local,
 
-		&migration.Options{
+		&migration.DestinationOptions{
 			ChunkSize: *chunkSize,
 
 			PullWorkers: *pullWorkers,
 
 			Verbose: *verbose,
 		},
-		&migration.Hooks{
+		&migration.DestinationHooks{
 			OnChunkIsLocal: func(off int64) error {
 				bar.Add(1)
 

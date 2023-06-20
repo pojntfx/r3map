@@ -15,7 +15,7 @@ import (
 	"github.com/pojntfx/r3map/pkg/utils"
 )
 
-type Options struct {
+type DestinationOptions struct {
 	ChunkSize int64
 
 	PullWorkers int64
@@ -23,7 +23,7 @@ type Options struct {
 	Verbose bool
 }
 
-type Hooks struct {
+type DestinationHooks struct {
 	OnChunkIsLocal func(off int64) error
 	OnAfterFlush   func(dirtyOffsets []int64) error
 }
@@ -39,8 +39,8 @@ type Destination struct {
 	local,
 	syncer backend.Backend
 
-	options *Options
-	hooks   *Hooks
+	options *DestinationOptions
+	hooks   *DestinationHooks
 
 	serverOptions *server.Options
 	clientOptions *client.Options
@@ -64,14 +64,14 @@ func NewDestination(
 
 	local backend.Backend,
 
-	options *Options,
-	hooks *Hooks,
+	options *DestinationOptions,
+	hooks *DestinationHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
 ) *Destination {
 	if options == nil {
-		options = &Options{}
+		options = &DestinationOptions{}
 	}
 
 	if options.ChunkSize <= 0 {
@@ -83,7 +83,7 @@ func NewDestination(
 	}
 
 	if hooks == nil {
-		hooks = &Hooks{}
+		hooks = &DestinationHooks{}
 	}
 
 	return &Destination{

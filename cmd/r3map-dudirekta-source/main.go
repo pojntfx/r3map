@@ -127,7 +127,7 @@ func main() {
 
 				if flushed {
 					// Stop seeding
-					errs <- nil
+					close(errs)
 				}
 			},
 		},
@@ -174,7 +174,5 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-
-		return
 	}
 }
