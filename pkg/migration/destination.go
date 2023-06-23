@@ -2,6 +2,7 @@ package migration
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"sync"
@@ -13,6 +14,10 @@ import (
 	"github.com/pojntfx/r3map/pkg/chunks"
 	"github.com/pojntfx/r3map/pkg/device"
 	"github.com/pojntfx/r3map/pkg/utils"
+)
+
+var (
+	ErrStartingTrackFailed = errors.New("starting track failed")
 )
 
 type DestinationOptions struct {
@@ -34,7 +39,9 @@ type Destination struct {
 	remote io.ReaderAt
 	size   int64
 
+	track func() error
 	flush func() ([]int64, error)
+	close func() error
 
 	local,
 	syncer backend.Backend
@@ -60,7 +67,9 @@ func NewDestination(
 	remote io.ReaderAt,
 	size int64,
 
+	track func() error,
 	flush func() ([]int64, error),
+	close func() error,
 
 	local backend.Backend,
 
@@ -92,7 +101,9 @@ func NewDestination(
 		remote: remote,
 		size:   size,
 
+		track: track,
 		flush: flush,
+		close: close,
 
 		local: local,
 
@@ -117,6 +128,20 @@ func (m *Destination) Wait() error {
 }
 
 func (m *Destination) Open() (string, error) {
+	ready := make(chan struct{})
+
+	go func() {
+		if err := m.track(); err != nil {
+			m.errs <- err
+
+			close(ready)
+
+			return
+		}
+
+		ready <- struct{}{}
+	}()
+
 	chunkCount := m.size / m.options.ChunkSize
 
 	devicePath, err := utils.FindUnusedNBDDevice()
@@ -160,6 +185,11 @@ func (m *Destination) Open() (string, error) {
 			return
 		}
 	}()
+
+	_, ok := <-ready
+	if !ok {
+		return "", ErrStartingTrackFailed
+	}
 
 	if err := m.puller.Open(m.options.PullWorkers); err != nil {
 		return "", err
@@ -247,6 +277,8 @@ func (m *Destination) Close() error {
 	if m.serverFile != nil {
 		_ = m.serverFile.Close()
 	}
+
+	_ = m.close()
 
 	m.wg.Wait()
 

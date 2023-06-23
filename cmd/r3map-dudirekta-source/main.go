@@ -89,6 +89,11 @@ func main() {
 		services.NewSource(
 			b,
 			*verbose,
+			func() error {
+				tr.Track()
+
+				return nil
+			},
 			func() ([]int64, error) {
 				// TODO: Once this is turned into a reusable module, add a `OnBeforeFlush` callback that must be called before the block below is executed
 
@@ -106,6 +111,16 @@ func main() {
 
 				return rv, nil
 			},
+			func() error {
+				// Stop seeding
+				if flushed && errs != nil {
+					close(errs)
+
+					errs = nil
+				}
+
+				return nil
+			},
 		),
 		struct{}{},
 
@@ -117,18 +132,11 @@ func main() {
 				clients++
 
 				log.Printf("%v clients connected", clients)
-
-				tr.Track()
 			},
 			OnClientDisconnect: func(remoteID string) {
 				clients--
 
 				log.Printf("%v clients connected", clients)
-
-				if flushed {
-					// Stop seeding
-					close(errs)
-				}
 			},
 		},
 	)
