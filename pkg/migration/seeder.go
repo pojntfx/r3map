@@ -33,6 +33,9 @@ type Seeder struct {
 	serverOptions *server.Options
 	clientOptions *client.Options
 
+	serverFile *os.File
+	dev        *device.Device
+
 	wg   sync.WaitGroup
 	errs chan error
 }
@@ -71,6 +74,16 @@ func NewSeeder(
 	}
 }
 
+func (s *Seeder) Wait() error {
+	for err := range s.errs {
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *Seeder) Open() (string, int64, *services.Source, error) {
 	size, err := s.local.Size()
 	if err != nil {
@@ -82,11 +95,10 @@ func (s *Seeder) Open() (string, int64, *services.Source, error) {
 		return "", 0, nil, err
 	}
 
-	serverFile, err := os.Open(devicePath)
+	s.serverFile, err = os.Open(devicePath)
 	if err != nil {
 		return "", 0, nil, err
 	}
-	defer serverFile.Close()
 
 	tr := chunks.NewTrackingReadWriterAt(s.local)
 
@@ -104,32 +116,31 @@ func (s *Seeder) Open() (string, int64, *services.Source, error) {
 		false,
 	)
 
-	dev := device.NewDevice(
+	s.dev = device.NewDevice(
 		b,
-		serverFile,
+		s.serverFile,
 
 		s.serverOptions,
 		s.clientOptions,
 	)
-	defer dev.Close()
 
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 
-		if err := dev.Wait(); err != nil {
+		if err := s.dev.Wait(); err != nil {
 			s.errs <- err
 
 			return
 		}
 	}()
 
-	if err := dev.Open(); err != nil {
+	if err := s.dev.Open(); err != nil {
 		return "", 0, nil, err
 	}
 
 	flushed := false
-	return "", 0, services.NewSource(
+	return devicePath, size, services.NewSource(
 			b,
 			s.options.Verbose,
 			func() error {
@@ -144,12 +155,7 @@ func (s *Seeder) Open() (string, int64, *services.Source, error) {
 					}
 				}
 
-				// TODO: `nil` these ressources/integrate with `s.Close()`
-				if err := dev.Close(); err != nil {
-					return []int64{}, err
-				}
-
-				if err := serverFile.Close(); err != nil {
+				if err := b.Sync(); err != nil {
 					return []int64{}, err
 				}
 
@@ -162,11 +168,31 @@ func (s *Seeder) Open() (string, int64, *services.Source, error) {
 			func() error {
 				// Stop seeding
 				if flushed {
-					// TODO: `return s.Close()` here once implemented
+					return s.Close()
 				}
 
 				return nil
 			},
 		),
 		nil
+}
+
+func (s *Seeder) Close() error {
+	if s.dev != nil {
+		_ = s.dev.Close()
+	}
+
+	if s.serverFile != nil {
+		_ = s.serverFile.Close()
+	}
+
+	s.wg.Wait()
+
+	if s.errs != nil {
+		close(s.errs)
+
+		s.errs = nil
+	}
+
+	return nil
 }
