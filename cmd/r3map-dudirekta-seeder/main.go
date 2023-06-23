@@ -5,25 +5,18 @@ import (
 	"flag"
 	"log"
 	"net"
-	"os"
 	"time"
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
-	lbackend "github.com/pojntfx/r3map/pkg/backend"
-	"github.com/pojntfx/r3map/pkg/chunks"
-	"github.com/pojntfx/r3map/pkg/device"
-	"github.com/pojntfx/r3map/pkg/services"
+	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/utils"
 )
 
 func main() {
 	laddr := flag.String("laddr", ":1337", "Listen address")
-
 	size := flag.Int64("size", 4096*8192, "Size of the memory region to expose")
-
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
-
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
 	flag.Parse()
@@ -31,97 +24,50 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	devicePath, err := utils.FindUnusedNBDDevice()
-	if err != nil {
-		panic(err)
-	}
+	b := backend.NewMemoryBackend(make([]byte, *size))
 
-	serverFile, err := os.Open(devicePath)
-	if err != nil {
-		panic(err)
-	}
-	defer serverFile.Close()
-
-	rb := backend.NewMemoryBackend(make([]byte, *size))
-
-	tr := chunks.NewTrackingReadWriterAt(rb)
-
-	b := lbackend.NewReaderAtBackend(
-		chunks.NewArbitraryReadWriterAt(
-			chunks.NewChunkedReadWriterAt(
-				tr,
-				*chunkSize,
-				*size / *chunkSize,
-			),
-			*chunkSize,
-		),
-		rb.Size,
-		rb.Sync,
-		false,
-	)
-
-	dev := device.NewDevice(
+	seeder := migration.NewSeeder(
 		b,
-		serverFile,
+
+		&migration.SeederOptions{
+			ChunkSize: *chunkSize,
+
+			Verbose: *verbose,
+		},
+		&migration.SeederHooks{
+			OnBeforeFlush: func() error {
+				log.Println("Flushing ...")
+
+				return nil
+			},
+		},
 
 		nil,
 		nil,
 	)
-	defer dev.Close()
 
 	errs := make(chan error)
 	go func() {
-		if err := dev.Wait(); err != nil {
+		if err := seeder.Wait(); err != nil {
 			errs <- err
 
 			return
 		}
+
+		close(errs)
 	}()
 
-	if err := dev.Open(); err != nil {
+	devicePath, _, svc, err := seeder.Open()
+	if err != nil {
 		panic(err)
 	}
+	defer seeder.Close()
+
+	log.Println("Connected on", devicePath)
 
 	clients := 0
-
-	flushed := false
 	registry := rpc.NewRegistry(
-		services.NewSource(
-			b,
-			*verbose,
-			func() error {
-				tr.Track()
-
-				return nil
-			},
-			func() ([]int64, error) {
-				// TODO: Once this is turned into a reusable module, add a `OnBeforeFlush` callback that must be called before the block below is executed
-
-				if err := dev.Close(); err != nil {
-					return []int64{}, err
-				}
-
-				if err := serverFile.Close(); err != nil {
-					return []int64{}, err
-				}
-
-				rv := tr.Flush()
-
-				flushed = true
-
-				return rv, nil
-			},
-			func() error {
-				// Stop seeding
-				if flushed && errs != nil {
-					close(errs)
-
-					errs = nil
-				}
-
-				return nil
-			},
-		),
+		svc,
 		struct{}{},
 
 		time.Second*10,
