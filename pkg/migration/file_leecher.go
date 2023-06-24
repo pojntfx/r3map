@@ -69,14 +69,11 @@ func (l *FileLeecher) Wait() error {
 	return l.path.Wait()
 }
 
-func (l *FileLeecher) Open() error {
-	_, err := l.path.Open()
-
-	return err
-}
-
-func (l *FileLeecher) Finalize() (*os.File, error) {
-	devicePath, err := l.path.Finalize()
+// Do not read or write from the returned file before `Finalize()` has been called
+// If you read before `Finalize()`, you'll get incomplete data but no corruption
+// If you write before `Finalize()`, you'll corrupt the received data
+func (l *FileLeecher) Open() (*os.File, error) {
+	devicePath, _, err := l.path.Open()
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +84,10 @@ func (l *FileLeecher) Finalize() (*os.File, error) {
 	}
 
 	return l.deviceFile, nil
+}
+
+func (l *FileLeecher) Finalize() error {
+	return l.path.Finalize()
 }
 
 func (l *FileLeecher) onBeforeClose() error {

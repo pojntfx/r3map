@@ -141,16 +141,16 @@ func main() {
 		panic(err)
 	}
 
-	chunkCount := int(size / *chunkSize)
-
 	bar := progressbar.NewOptions(
-		chunkCount,
+		int(size),
 		progressbar.OptionSetDescription("Pulling"),
-		progressbar.OptionSetItsString("chunk"),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionOnCompletion(func() {
+			fmt.Fprint(os.Stderr, "\n")
+		}),
 		progressbar.OptionSetWriter(os.Stderr),
 		progressbar.OptionThrottle(100*time.Millisecond),
 		progressbar.OptionShowCount(),
-		progressbar.OptionShowIts(),
 		progressbar.OptionFullWidth(),
 		// VT-100 compatibility
 		progressbar.OptionUseANSICodes(true),
@@ -179,16 +179,18 @@ func main() {
 			},
 			&migration.SliceLeecherHooks{
 				OnChunkIsLocal: func(off int64) error {
-					bar.Add(1)
+					bar.Add(int(*chunkSize))
 
 					return nil
 				},
 				OnAfterSync: func(dirtyOffsets []int64) error {
 					bar.Clear()
 
-					log.Printf("Invalidated %v dirty offsets", len(dirtyOffsets))
+					delta := (len(dirtyOffsets) * int(*chunkSize))
 
-					bar.ChangeMax(chunkCount + len(dirtyOffsets))
+					log.Printf("Invalidated: %.2f MB (%.2f Mb)", float64(delta)/(1024*1024), (float64(delta)/(1024*1024))*8)
+
+					bar.ChangeMax(int(size) + delta)
 
 					bar.Describe("Finalizing")
 
@@ -210,10 +212,17 @@ func main() {
 			close(leecherErrs)
 		}()
 
-		if err = leecher.Open(); err != nil {
+		beforeOpen := time.Now()
+
+		deviceSlice, err := leecher.Open()
+		if err != nil {
 			panic(err)
 		}
 		defer leecher.Close()
+
+		afterOpen := time.Since(beforeOpen)
+
+		fmt.Printf("Open: %v\n", afterOpen)
 
 		log.Println("Press <ENTER> to finalize")
 
@@ -221,18 +230,25 @@ func main() {
 
 		beforeFinalize := time.Now()
 
-		deviceSlice, err := leecher.Finalize()
-		if err != nil {
+		if err := leecher.Finalize(); err != nil {
 			panic(err)
 		}
 
 		afterFinalize := time.Since(beforeFinalize)
 
-		fmt.Printf("Finalization latency: %v\n", afterFinalize)
+		fmt.Printf("Finalize: %v\n", afterFinalize)
 
 		output := make([]byte, size)
 
+		beforeRead := time.Now()
+
 		copy(output, deviceSlice)
+
+		afterRead := time.Since(beforeRead)
+
+		throughputMB := float64(size) / (1024 * 1024) / afterRead.Seconds()
+
+		fmt.Printf("Read throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
 	} else {
 		leecher := migration.NewFileLeecher(
 			ctx,
@@ -249,16 +265,18 @@ func main() {
 			},
 			&migration.FileLeecherHooks{
 				OnChunkIsLocal: func(off int64) error {
-					bar.Add(1)
+					bar.Add(int(*chunkSize))
 
 					return nil
 				},
 				OnAfterSync: func(dirtyOffsets []int64) error {
 					bar.Clear()
 
-					log.Printf("Invalidated %v dirty offsets", len(dirtyOffsets))
+					delta := (len(dirtyOffsets) * int(*chunkSize))
 
-					bar.ChangeMax(chunkCount + len(dirtyOffsets))
+					log.Printf("Invalidated: %.2f MB (%.2f Mb)", float64(delta)/(1024*1024), (float64(delta)/(1024*1024))*8)
+
+					bar.ChangeMax(int(size) + delta)
 
 					bar.Describe("Finalizing")
 
@@ -280,10 +298,17 @@ func main() {
 			close(leecherErrs)
 		}()
 
-		if err = leecher.Open(); err != nil {
+		beforeOpen := time.Now()
+
+		deviceFile, err := leecher.Open()
+		if err != nil {
 			panic(err)
 		}
 		defer leecher.Close()
+
+		afterOpen := time.Since(beforeOpen)
+
+		fmt.Printf("Open: %v\n", afterOpen)
 
 		log.Println("Press <ENTER> to finalize")
 
@@ -291,16 +316,17 @@ func main() {
 
 		beforeFinalize := time.Now()
 
-		deviceFile, err := leecher.Finalize()
-		if err != nil {
+		if err := leecher.Finalize(); err != nil {
 			panic(err)
 		}
 
 		afterFinalize := time.Since(beforeFinalize)
 
-		fmt.Printf("Finalization latency: %v\n", afterFinalize)
+		fmt.Printf("Finalize: %v\n", afterFinalize)
 
 		output := backend.NewMemoryBackend(make([]byte, size))
+
+		beforeRead := time.Now()
 
 		if _, err := io.CopyN(
 			io.NewOffsetWriter(
@@ -309,5 +335,11 @@ func main() {
 			), deviceFile, size); err != nil {
 			panic(err)
 		}
+
+		afterRead := time.Since(beforeRead)
+
+		throughputMB := float64(size) / (1024 * 1024) / afterRead.Seconds()
+
+		fmt.Printf("Read throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
 	}
 }
