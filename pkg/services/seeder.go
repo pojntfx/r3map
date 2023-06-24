@@ -11,7 +11,7 @@ type SeederRemote struct {
 	ReadAt func(context context.Context, length int, off int64) (r ReadAtResponse, err error)
 	Size   func(context context.Context) (int64, error)
 	Track  func(context context.Context) error
-	Flush  func(context context.Context) ([]int64, error)
+	Sync   func(context context.Context) ([]int64, error)
 	Close  func(context context.Context) error
 }
 
@@ -20,7 +20,7 @@ type Seeder struct {
 	verbose bool
 
 	track func() error
-	flush func() ([]int64, error)
+	sync  func() ([]int64, error)
 	close func() error
 }
 
@@ -28,10 +28,10 @@ func NewSeeder(
 	b backend.Backend,
 	verbose bool,
 	track func() error,
-	flush func() ([]int64, error),
+	sync func() ([]int64, error),
 	close func() error,
 ) *Seeder {
-	return &Seeder{b, verbose, track, flush, close}
+	return &Seeder{b, verbose, track, sync, close}
 }
 
 func (b *Seeder) ReadAt(context context.Context, length int, off int64) (r ReadAtResponse, err error) {
@@ -64,12 +64,12 @@ func (b *Seeder) Track(context context.Context) error {
 	return b.track()
 }
 
-func (b *Seeder) Flush(context context.Context) ([]int64, error) {
+func (b *Seeder) Sync(context context.Context) ([]int64, error) {
 	if b.verbose {
-		log.Println("Flush()")
+		log.Println("Sync()")
 	}
 
-	return b.flush()
+	return b.sync()
 }
 
 func (b *Seeder) Close(context context.Context) error {

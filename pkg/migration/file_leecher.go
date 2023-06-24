@@ -49,7 +49,7 @@ type LeecherOptions struct {
 
 type LeecherHooks struct {
 	OnChunkIsLocal func(off int64) error
-	OnAfterFlush   func(dirtyOffsets []int64) error
+	OnAfterSync    func(dirtyOffsets []int64) error
 }
 
 type FileLeecher struct {
@@ -70,7 +70,6 @@ type FileLeecher struct {
 	devicePath       string
 	syncedReadWriter *chunks.SyncedReadWriterAt
 	puller           *chunks.Puller
-	syncer           backend.Backend
 
 	wg   sync.WaitGroup
 	errs chan error
@@ -210,15 +209,13 @@ func (l *FileLeecher) Open() (int64, error) {
 
 	arbitraryReadWriter := chunks.NewArbitraryReadWriterAt(l.syncedReadWriter, l.options.ChunkSize)
 
-	l.syncer = bbackend.NewReaderAtBackend(
+	syncer := bbackend.NewReaderAtBackend(
 		arbitraryReadWriter,
 		func() (int64, error) {
 			return size, nil
 		},
 		func() error {
-			if err := l.local.Sync(); err != nil {
-				return err
-			}
+			// We don't need to call `Sync()` here since our remote handles it when we call `Finalize()`
 
 			return nil
 		},
@@ -226,7 +223,7 @@ func (l *FileLeecher) Open() (int64, error) {
 	)
 
 	l.dev = device.NewDevice(
-		l.syncer,
+		syncer,
 		l.serverFile,
 
 		l.serverOptions,
@@ -252,12 +249,12 @@ func (l *FileLeecher) Open() (int64, error) {
 }
 
 func (l *FileLeecher) Finalize() (string, error) {
-	dirtyOffsets, err := l.remote.Flush(l.ctx)
+	dirtyOffsets, err := l.remote.Sync(l.ctx)
 	if err != nil {
 		return "", err
 	}
 
-	if hook := l.hooks.OnAfterFlush; hook != nil {
+	if hook := l.hooks.OnAfterSync; hook != nil {
 		if err := hook(dirtyOffsets); err != nil {
 			return "", err
 		}
@@ -275,10 +272,6 @@ func (l *FileLeecher) Finalize() (string, error) {
 }
 
 func (l *FileLeecher) Close() error {
-	if l.syncer != nil {
-		_ = l.syncer.Sync()
-	}
-
 	if l.dev != nil {
 		_ = l.dev.Close()
 	}
@@ -302,8 +295,4 @@ func (l *FileLeecher) Close() error {
 	}
 
 	return nil
-}
-
-func (l *FileLeecher) Sync() error {
-	return l.syncer.Sync()
 }

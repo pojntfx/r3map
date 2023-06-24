@@ -239,18 +239,10 @@ func (m *PathMount) Open() (string, int64, error) {
 
 			// We only ever touch the remote if we want to push
 			if m.options.PushWorkers > 0 {
-				_, err := local.(*chunks.Pusher).Flush()
+				_, err := local.(*chunks.Pusher).Sync()
 				if err != nil {
 					return err
 				}
-
-				if err := m.remote.Sync(); err != nil {
-					return err
-				}
-			}
-
-			if err := m.local.Sync(); err != nil {
-				return err
 			}
 
 			return nil

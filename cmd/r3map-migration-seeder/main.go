@@ -33,8 +33,8 @@ func main() {
 			Verbose: *verbose,
 		},
 		&migration.SeederHooks{
-			OnBeforeFlush: func() error {
-				log.Println("Flushing")
+			OnBeforeSync: func() error {
+				log.Println("Syncing")
 
 				return nil
 			},

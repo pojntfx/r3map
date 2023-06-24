@@ -78,7 +78,7 @@ func (p *Pusher) pushChunks() {
 		case <-p.pushTicker.C:
 			p.workerWg.Add(1)
 
-			if _, err := p.Flush(); err != nil {
+			if _, err := p.Sync(); err != nil {
 				p.errs <- err
 			}
 
@@ -90,7 +90,7 @@ func (p *Pusher) pushChunks() {
 	}
 }
 
-func (p *Pusher) Flush() (int, error) {
+func (p *Pusher) Sync() (int, error) {
 	p.changedOffsetsLock.Lock()
 
 	n := len(p.changedOffsets)
@@ -166,7 +166,7 @@ func (p *Pusher) Wait() error {
 }
 
 func (p *Pusher) Close() error {
-	if _, err := p.Flush(); err != nil {
+	if _, err := p.Sync(); err != nil {
 		return err
 	}
 

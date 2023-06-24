@@ -17,7 +17,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 		expectedData    [][][]byte
 		expectedOffsets [][]int64
 		preTrackWrites  int
-		flushEachWrite  []int
+		syncEachWrite   []int
 	}{
 		{
 			name:            "Write and track one chunk",
@@ -26,7 +26,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			rwBufferSize:    4,
 			expectedData:    [][][]byte{{[]byte("1234")}},
 			expectedOffsets: [][]int64{{0}},
-			flushEachWrite:  []int{1},
+			syncEachWrite:   []int{1},
 		},
 		{
 			name:            "Write and track two chunks",
@@ -35,7 +35,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			rwBufferSize:    4,
 			expectedData:    [][][]byte{{[]byte("1234"), []byte("5678")}},
 			expectedOffsets: [][]int64{{0, 4}},
-			flushEachWrite:  []int{2},
+			syncEachWrite:   []int{2},
 		},
 		{
 			name:            "Write and track three chunks",
@@ -44,7 +44,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			rwBufferSize:    4,
 			expectedData:    [][][]byte{{[]byte("1234"), []byte("5678"), []byte("9012")}},
 			expectedOffsets: [][]int64{{0, 4, 8}},
-			flushEachWrite:  []int{3},
+			syncEachWrite:   []int{3},
 		},
 		{
 			name:            "Write to the same offset twice",
@@ -53,7 +53,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			rwBufferSize:    4,
 			expectedData:    [][][]byte{{[]byte("5678")}},
 			expectedOffsets: [][]int64{{0}},
-			flushEachWrite:  []int{2},
+			syncEachWrite:   []int{2},
 		},
 		{
 			name:            "Track only after calling Track",
@@ -65,13 +65,13 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			preTrackWrites:  1,
 		},
 		{
-			name:            "Writing and flushing twice only returns the second delta",
+			name:            "Writing and syncing twice only returns the second delta",
 			inputs:          [][]byte{[]byte("1234"), []byte("5678"), []byte("9012")},
 			offsets:         []int64{0, 4, 8},
 			rwBufferSize:    4,
 			expectedData:    [][][]byte{{[]byte("1234"), []byte("5678")}, {[]byte("9012")}},
 			expectedOffsets: [][]int64{{0, 4}, {8}},
-			flushEachWrite:  []int{2, 1},
+			syncEachWrite:   []int{2, 1},
 		},
 	}
 
@@ -95,10 +95,10 @@ func TestTrackingReadWriterAt(t *testing.T) {
 			}
 
 			start := tc.preTrackWrites
-			for i, flushEachWrite := range tc.flushEachWrite {
+			for i, syncEachWrite := range tc.syncEachWrite {
 				trw.Track()
 
-				for j := start; j < start+flushEachWrite; j++ {
+				for j := start; j < start+syncEachWrite; j++ {
 					wn, err := trw.WriteAt(tc.inputs[j], tc.offsets[j])
 					if err != nil {
 						t.Errorf("WriteAt error: got %v", err)
@@ -109,22 +109,22 @@ func TestTrackingReadWriterAt(t *testing.T) {
 					}
 				}
 
-				dirtyOffsets := trw.Flush()
+				dirtyOffsets := trw.Sync()
 
 				sort.Slice(tc.expectedOffsets[i], func(x, y int) bool { return tc.expectedOffsets[i][x] < tc.expectedOffsets[i][y] })
 				sort.Slice(dirtyOffsets, func(x, y int) bool { return dirtyOffsets[x] < dirtyOffsets[y] })
 
 				if !reflect.DeepEqual(tc.expectedOffsets[i], dirtyOffsets) {
-					t.Errorf("Flush offsets: expected %v, got %v", tc.expectedOffsets[i], dirtyOffsets)
+					t.Errorf("Sync offsets: expected %v, got %v", tc.expectedOffsets[i], dirtyOffsets)
 				}
 
-				start += flushEachWrite
+				start += syncEachWrite
 			}
 
 			rbuf := make([]byte, tc.rwBufferSize)
 			start = 0
-			for i, flushEachWrite := range tc.flushEachWrite {
-				for j := start; j < start+flushEachWrite; j++ {
+			for i, syncEachWrite := range tc.syncEachWrite {
+				for j := start; j < start+syncEachWrite; j++ {
 					rn, err := trw.ReadAt(rbuf, tc.offsets[j])
 					if err != nil {
 						t.Errorf("ReadAt error: got %v", err)
@@ -143,7 +143,7 @@ func TestTrackingReadWriterAt(t *testing.T) {
 					}
 				}
 
-				start += flushEachWrite
+				start += syncEachWrite
 			}
 		})
 	}

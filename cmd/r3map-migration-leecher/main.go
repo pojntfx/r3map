@@ -124,7 +124,7 @@ func main() {
 
 				return nil
 			},
-			OnAfterFlush: func(dirtyOffsets []int64) error {
+			OnAfterSync: func(dirtyOffsets []int64) error {
 				bar.Clear()
 
 				log.Printf("Invalidated %v dirty offsets", len(dirtyOffsets))
@@ -140,8 +140,6 @@ func main() {
 		nil,
 		nil,
 	)
-
-	output := backend.NewMemoryBackend(make([]byte, size))
 
 	errs := make(chan error)
 	go func() {
@@ -176,6 +174,8 @@ func main() {
 	defer deviceFile.Close()
 
 	log.Println("Connected on", devicePath)
+
+	output := backend.NewMemoryBackend(make([]byte, size))
 
 	if _, err := io.CopyN(
 		io.NewOffsetWriter(

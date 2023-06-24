@@ -21,7 +21,7 @@ type SeederOptions struct {
 }
 
 type SeederHooks struct {
-	OnBeforeFlush func() error
+	OnBeforeSync func() error
 }
 
 type FileSeeder struct {
@@ -139,7 +139,7 @@ func (s *FileSeeder) Open() (string, int64, *services.Seeder, error) {
 		return "", 0, nil, err
 	}
 
-	flushed := false
+	synced := false
 	return devicePath, size, services.NewSeeder(
 			b,
 			s.options.Verbose,
@@ -149,25 +149,21 @@ func (s *FileSeeder) Open() (string, int64, *services.Seeder, error) {
 				return nil
 			},
 			func() ([]int64, error) {
-				if hook := s.hooks.OnBeforeFlush; hook != nil {
+				if hook := s.hooks.OnBeforeSync; hook != nil {
 					if err := hook(); err != nil {
 						return []int64{}, err
 					}
 				}
 
-				if err := b.Sync(); err != nil {
-					return []int64{}, err
-				}
+				rv := tr.Sync()
 
-				rv := tr.Flush()
-
-				flushed = true
+				synced = true
 
 				return rv, nil
 			},
 			func() error {
 				// Stop seeding
-				if flushed {
+				if synced {
 					return s.Close()
 				}
 

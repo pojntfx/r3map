@@ -33,7 +33,7 @@ func (c *TrackingReadWriterAt) WriteAt(p []byte, off int64) (n int, err error) {
 	return c.backend.WriteAt(p, off)
 }
 
-func (c *TrackingReadWriterAt) Flush() []int64 {
+func (c *TrackingReadWriterAt) Sync() []int64 {
 	c.trackingLock.Lock()
 	defer c.trackingLock.Unlock()
 
