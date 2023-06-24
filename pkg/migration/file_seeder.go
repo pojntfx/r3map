@@ -24,7 +24,7 @@ type SeederHooks struct {
 	OnBeforeFlush func() error
 }
 
-type Seeder struct {
+type FileSeeder struct {
 	local backend.Backend
 
 	options *SeederOptions
@@ -40,7 +40,7 @@ type Seeder struct {
 	errs chan error
 }
 
-func NewSeeder(
+func NewFileSeeder(
 	local backend.Backend,
 
 	options *SeederOptions,
@@ -48,7 +48,7 @@ func NewSeeder(
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *Seeder {
+) *FileSeeder {
 	if options == nil {
 		options = &SeederOptions{}
 	}
@@ -61,7 +61,7 @@ func NewSeeder(
 		hooks = &SeederHooks{}
 	}
 
-	return &Seeder{
+	return &FileSeeder{
 		local: local,
 
 		options: options,
@@ -74,7 +74,7 @@ func NewSeeder(
 	}
 }
 
-func (s *Seeder) Wait() error {
+func (s *FileSeeder) Wait() error {
 	for err := range s.errs {
 		if err != nil {
 			return err
@@ -84,7 +84,7 @@ func (s *Seeder) Wait() error {
 	return nil
 }
 
-func (s *Seeder) Open() (string, int64, *services.Seeder, error) {
+func (s *FileSeeder) Open() (string, int64, *services.Seeder, error) {
 	size, err := s.local.Size()
 	if err != nil {
 		return "", 0, nil, err
@@ -177,7 +177,7 @@ func (s *Seeder) Open() (string, int64, *services.Seeder, error) {
 		nil
 }
 
-func (s *Seeder) Close() error {
+func (s *FileSeeder) Close() error {
 	if s.dev != nil {
 		_ = s.dev.Close()
 	}

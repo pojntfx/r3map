@@ -1,4 +1,4 @@
-package frontend
+package mount
 
 import (
 	"context"
@@ -9,35 +9,35 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 )
 
-type FileFrontend struct {
-	path *PathFrontend
+type FileMount struct {
+	path *PathMount
 
 	deviceFile *os.File
 }
 
-type FileFrontendHooks struct {
+type FileMountHooks struct {
 	OnChunkIsLocal func(off int64) error
 }
 
-func NewFileFrontend(
+func NewFileMount(
 	ctx context.Context,
 
 	remote backend.Backend,
 	local backend.Backend,
 
-	options *Options,
-	hooks *FileFrontendHooks,
+	options *MountOptions,
+	hooks *FileMountHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *FileFrontend {
-	h := &Hooks{}
+) *FileMount {
+	h := &MountHooks{}
 	if hooks != nil {
 		h.OnChunkIsLocal = hooks.OnChunkIsLocal
 	}
 
-	m := &FileFrontend{
-		path: NewPathFrontend(
+	m := &FileMount{
+		path: NewPathMount(
 			ctx,
 
 			remote,
@@ -58,11 +58,11 @@ func NewFileFrontend(
 	return m
 }
 
-func (m *FileFrontend) Wait() error {
+func (m *FileMount) Wait() error {
 	return m.path.Wait()
 }
 
-func (m *FileFrontend) Open() (*os.File, error) {
+func (m *FileMount) Open() (*os.File, error) {
 	devicePath, _, err := m.path.Open()
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (m *FileFrontend) Open() (*os.File, error) {
 	return m.deviceFile, nil
 }
 
-func (m *FileFrontend) onBeforeSync() error {
+func (m *FileMount) onBeforeSync() error {
 	if m.deviceFile != nil {
 		if err := m.deviceFile.Sync(); err != nil {
 			return nil
@@ -86,7 +86,7 @@ func (m *FileFrontend) onBeforeSync() error {
 	return nil
 }
 
-func (m *FileFrontend) onBeforeClose() error {
+func (m *FileMount) onBeforeClose() error {
 	if m.deviceFile != nil {
 		_ = m.deviceFile.Close()
 	}
@@ -94,10 +94,10 @@ func (m *FileFrontend) onBeforeClose() error {
 	return nil
 }
 
-func (m *FileFrontend) Close() error {
+func (m *FileMount) Close() error {
 	return m.path.Close()
 }
 
-func (m *FileFrontend) Sync() error {
+func (m *FileMount) Sync() error {
 	return m.path.Sync()
 }

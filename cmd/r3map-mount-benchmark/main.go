@@ -21,7 +21,7 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/chunks"
-	"github.com/pojntfx/r3map/pkg/frontend"
+	"github.com/pojntfx/r3map/pkg/mount"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
 	"github.com/redis/go-redis/v9"
@@ -348,18 +348,18 @@ func main() {
 
 	var (
 		mountedReader            io.Reader
-		mount                    any
+		m                        any
 		sync                     func() error
 		preemptivelyPulledChunks int64
 	)
 	if *slice {
-		mnt := frontend.NewSliceFrontend(
+		mnt := mount.NewSliceMount(
 			ctx,
 
 			r,
 			l,
 
-			&frontend.Options{
+			&mount.MountOptions{
 				ChunkSize: *chunkSize,
 
 				PullWorkers: *pullWorkers,
@@ -370,7 +370,7 @@ func main() {
 
 				Verbose: *verbose,
 			},
-			&frontend.SliceFrontendHooks{
+			&mount.SliceMountHooks{
 				OnChunkIsLocal: func(off int64) error {
 					preemptivelyPulledChunks++
 
@@ -403,15 +403,15 @@ func main() {
 			fmt.Printf("Close: %v\n", afterClose)
 		}()
 
-		mountedReader, mount, sync = bytes.NewReader(mountedSlice), mountedSlice, mnt.Sync
+		mountedReader, m, sync = bytes.NewReader(mountedSlice), mountedSlice, mnt.Sync
 	} else {
-		mnt := frontend.NewFileFrontend(
+		mnt := mount.NewFileMount(
 			ctx,
 
 			r,
 			l,
 
-			&frontend.Options{
+			&mount.MountOptions{
 				ChunkSize: *chunkSize,
 
 				PullWorkers: *pullWorkers,
@@ -422,7 +422,7 @@ func main() {
 
 				Verbose: *verbose,
 			},
-			&frontend.FileFrontendHooks{
+			&mount.FileMountHooks{
 				OnChunkIsLocal: func(off int64) error {
 					preemptivelyPulledChunks++
 
@@ -455,7 +455,7 @@ func main() {
 			fmt.Printf("Close: %v\n", afterClose)
 		}()
 
-		mountedReader, mount, sync = mountedFile, mountedFile, mnt.Sync
+		mountedReader, m, sync = mountedFile, mountedFile, mnt.Sync
 	}
 
 	afterOpen := time.Since(beforeOpen)
@@ -485,9 +485,9 @@ func main() {
 	fmt.Printf("Latency till first two chunks: %v\n", afterFirstTwoChunks)
 
 	if *slice {
-		mountedReader = bytes.NewReader(mount.([]byte))
+		mountedReader = bytes.NewReader(m.([]byte))
 	} else {
-		if _, err := mount.(*os.File).Seek(0, io.SeekStart); err != nil {
+		if _, err := m.(*os.File).Seek(0, io.SeekStart); err != nil {
 			panic(err)
 		}
 	}
@@ -510,9 +510,9 @@ func main() {
 
 	validate := func(output io.ReaderAt) error {
 		if *slice {
-			mountedReader = bytes.NewReader(mount.([]byte))
+			mountedReader = bytes.NewReader(m.([]byte))
 		} else {
-			if _, err := mount.(*os.File).Seek(0, io.SeekStart); err != nil {
+			if _, err := m.(*os.File).Seek(0, io.SeekStart); err != nil {
 				panic(err)
 			}
 		}
@@ -571,11 +571,11 @@ func main() {
 	beforeWrite := time.Now()
 
 	if *slice {
-		if _, err := rand.Read(mount.([]byte)); err != nil {
+		if _, err := rand.Read(m.([]byte)); err != nil {
 			panic(err)
 		}
 	} else {
-		if _, err := io.CopyN(mount.(*os.File), rand.Reader, size); err != nil {
+		if _, err := io.CopyN(m.(*os.File), rand.Reader, size); err != nil {
 			panic(err)
 		}
 	}
@@ -588,9 +588,9 @@ func main() {
 
 	if *check && *pushWorkers > 0 {
 		if *slice {
-			mountedReader = bytes.NewReader(mount.([]byte))
+			mountedReader = bytes.NewReader(m.([]byte))
 		} else {
-			if _, err := mount.(*os.File).Seek(0, io.SeekStart); err != nil {
+			if _, err := m.(*os.File).Seek(0, io.SeekStart); err != nil {
 				panic(err)
 			}
 		}

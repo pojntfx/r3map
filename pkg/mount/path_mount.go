@@ -1,4 +1,4 @@
-package frontend
+package mount
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"github.com/pojntfx/r3map/pkg/utils"
 )
 
-type Options struct {
+type MountOptions struct {
 	ChunkSize int64
 
 	PullWorkers  int64
@@ -28,7 +28,7 @@ type Options struct {
 	Verbose bool
 }
 
-type Hooks struct {
+type MountHooks struct {
 	OnBeforeSync func() error
 
 	OnBeforeClose func() error
@@ -37,15 +37,15 @@ type Hooks struct {
 	OnChunkIsLocal func(off int64) error
 }
 
-type PathFrontend struct {
+type PathMount struct {
 	ctx context.Context
 
 	remote,
 	local,
 	syncer backend.Backend
 
-	options *Options
-	hooks   *Hooks
+	options *MountOptions
+	hooks   *MountHooks
 
 	serverOptions *server.Options
 	clientOptions *client.Options
@@ -59,20 +59,20 @@ type PathFrontend struct {
 	errs chan error
 }
 
-func NewPathFrontend(
+func NewPathMount(
 	ctx context.Context,
 
 	remote backend.Backend,
 	local backend.Backend,
 
-	options *Options,
-	hooks *Hooks,
+	options *MountOptions,
+	hooks *MountHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *PathFrontend {
+) *PathMount {
 	if options == nil {
-		options = &Options{}
+		options = &MountOptions{}
 	}
 
 	if options.ChunkSize <= 0 {
@@ -94,10 +94,10 @@ func NewPathFrontend(
 	}
 
 	if hooks == nil {
-		hooks = &Hooks{}
+		hooks = &MountHooks{}
 	}
 
-	return &PathFrontend{
+	return &PathMount{
 		ctx: ctx,
 
 		remote: remote,
@@ -113,7 +113,7 @@ func NewPathFrontend(
 	}
 }
 
-func (m *PathFrontend) Wait() error {
+func (m *PathMount) Wait() error {
 	for err := range m.errs {
 		if err != nil {
 			return err
@@ -123,7 +123,7 @@ func (m *PathFrontend) Wait() error {
 	return nil
 }
 
-func (m *PathFrontend) Open() (string, int64, error) {
+func (m *PathMount) Open() (string, int64, error) {
 	size, err := m.remote.Size()
 	if err != nil {
 		return "", 0, err
@@ -284,7 +284,7 @@ func (m *PathFrontend) Open() (string, int64, error) {
 	return devicePath, size, nil
 }
 
-func (m *PathFrontend) Close() error {
+func (m *PathMount) Close() error {
 	if m.syncer != nil {
 		_ = m.syncer.Sync()
 	}
@@ -328,6 +328,6 @@ func (m *PathFrontend) Close() error {
 	return nil
 }
 
-func (m *PathFrontend) Sync() error {
+func (m *PathMount) Sync() error {
 	return m.syncer.Sync()
 }

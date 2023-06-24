@@ -1,4 +1,4 @@
-package frontend
+package mount
 
 import (
 	"context"
@@ -11,12 +11,12 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 )
 
-type SliceFrontendHooks struct {
+type SliceMountHooks struct {
 	OnChunkIsLocal func(off int64) error
 }
 
-type SliceFrontend struct {
-	path *PathFrontend
+type SliceMount struct {
+	path *PathMount
 
 	deviceFile *os.File
 
@@ -24,25 +24,25 @@ type SliceFrontend struct {
 	mmapMount sync.Mutex
 }
 
-func NewSliceFrontend(
+func NewSliceMount(
 	ctx context.Context,
 
 	remote backend.Backend,
 	local backend.Backend,
 
-	options *Options,
-	hooks *SliceFrontendHooks,
+	options *MountOptions,
+	hooks *SliceMountHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *SliceFrontend {
-	h := &Hooks{}
+) *SliceMount {
+	h := &MountHooks{}
 	if hooks != nil {
 		h.OnChunkIsLocal = hooks.OnChunkIsLocal
 	}
 
-	m := &SliceFrontend{
-		path: NewPathFrontend(
+	m := &SliceMount{
+		path: NewPathMount(
 			ctx,
 
 			remote,
@@ -64,11 +64,11 @@ func NewSliceFrontend(
 	return m
 }
 
-func (m *SliceFrontend) Wait() error {
+func (m *SliceMount) Wait() error {
 	return m.path.Wait()
 }
 
-func (m *SliceFrontend) Open() ([]byte, error) {
+func (m *SliceMount) Open() ([]byte, error) {
 	devicePath, size, err := m.path.Open()
 	if err != nil {
 		return []byte{}, err
@@ -93,7 +93,7 @@ func (m *SliceFrontend) Open() ([]byte, error) {
 	return m.slice, nil
 }
 
-func (m *SliceFrontend) onBeforeSync() error {
+func (m *SliceMount) onBeforeSync() error {
 	m.mmapMount.Lock()
 	if m.slice != nil {
 		if err := m.slice.Flush(); err != nil {
@@ -105,7 +105,7 @@ func (m *SliceFrontend) onBeforeSync() error {
 	return nil
 }
 
-func (m *SliceFrontend) onBeforeClose() error {
+func (m *SliceMount) onBeforeClose() error {
 	if m.deviceFile != nil {
 		_ = m.deviceFile.Close()
 	}
@@ -113,7 +113,7 @@ func (m *SliceFrontend) onBeforeClose() error {
 	return nil
 }
 
-func (m *SliceFrontend) onAfterClose() error {
+func (m *SliceMount) onAfterClose() error {
 	m.mmapMount.Lock()
 	if m.slice != nil {
 		_ = m.slice.Unlock()
@@ -127,10 +127,10 @@ func (m *SliceFrontend) onAfterClose() error {
 	return nil
 }
 
-func (m *SliceFrontend) Close() error {
+func (m *SliceMount) Close() error {
 	return m.path.Close()
 }
 
-func (m *SliceFrontend) Sync() error {
+func (m *SliceMount) Sync() error {
 	return m.path.Sync()
 }

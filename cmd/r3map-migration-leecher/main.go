@@ -105,7 +105,7 @@ func main() {
 		}),
 	)
 
-	leecher := migration.NewLeecher(
+	leecher := migration.NewFileLeecher(
 		ctx,
 
 		backend.NewMemoryBackend(make([]byte, size)),

@@ -24,7 +24,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	seeder := migration.NewSeeder(
+	seeder := migration.NewFileSeeder(
 		backend.NewMemoryBackend(make([]byte, *size)),
 
 		&migration.SeederOptions{

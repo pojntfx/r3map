@@ -52,7 +52,7 @@ type LeecherHooks struct {
 	OnAfterFlush   func(dirtyOffsets []int64) error
 }
 
-type Leecher struct {
+type FileLeecher struct {
 	ctx context.Context
 
 	local  backend.Backend
@@ -76,7 +76,7 @@ type Leecher struct {
 	errs chan error
 }
 
-func NewLeecher(
+func NewFileLeecher(
 	ctx context.Context,
 
 	local backend.Backend,
@@ -87,7 +87,7 @@ func NewLeecher(
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *Leecher {
+) *FileLeecher {
 	if options == nil {
 		options = &LeecherOptions{}
 	}
@@ -110,7 +110,7 @@ func NewLeecher(
 		hooks = &LeecherHooks{}
 	}
 
-	return &Leecher{
+	return &FileLeecher{
 		ctx: ctx,
 
 		local:  local,
@@ -126,7 +126,7 @@ func NewLeecher(
 	}
 }
 
-func (l *Leecher) Wait() error {
+func (l *FileLeecher) Wait() error {
 	for err := range l.errs {
 		if err != nil {
 			return err
@@ -136,7 +136,7 @@ func (l *Leecher) Wait() error {
 	return nil
 }
 
-func (l *Leecher) Open() (int64, error) {
+func (l *FileLeecher) Open() (int64, error) {
 	ready := make(chan struct{})
 
 	go func() {
@@ -251,7 +251,7 @@ func (l *Leecher) Open() (int64, error) {
 	return size, nil
 }
 
-func (l *Leecher) Finalize() (string, error) {
+func (l *FileLeecher) Finalize() (string, error) {
 	dirtyOffsets, err := l.remote.Flush(l.ctx)
 	if err != nil {
 		return "", err
@@ -274,7 +274,7 @@ func (l *Leecher) Finalize() (string, error) {
 	return l.devicePath, nil
 }
 
-func (l *Leecher) Close() error {
+func (l *FileLeecher) Close() error {
 	if l.syncer != nil {
 		_ = l.syncer.Sync()
 	}
@@ -302,4 +302,8 @@ func (l *Leecher) Close() error {
 	}
 
 	return nil
+}
+
+func (l *FileLeecher) Sync() error {
+	return l.syncer.Sync()
 }
