@@ -105,7 +105,7 @@ func main() {
 		}),
 	)
 
-	leecher := migration.NewPathLeecher(
+	leecher := migration.NewFileLeecher(
 		ctx,
 
 		backend.NewMemoryBackend(make([]byte, size)),
@@ -118,7 +118,7 @@ func main() {
 
 			Verbose: *verbose,
 		},
-		&migration.LeecherHooks{
+		&migration.FileLeecherHooks{
 			OnChunkIsLocal: func(off int64) error {
 				bar.Add(1)
 
@@ -152,8 +152,7 @@ func main() {
 		close(errs)
 	}()
 
-	_, err = leecher.Open()
-	if err != nil {
+	if err = leecher.Open(); err != nil {
 		panic(err)
 	}
 	defer leecher.Close()
@@ -162,18 +161,12 @@ func main() {
 
 	bufio.NewScanner(os.Stdin).Scan()
 
-	devicePath, err := leecher.Finalize()
+	deviceFile, err := leecher.Finalize()
 	if err != nil {
 		panic(err)
 	}
 
-	deviceFile, err := os.OpenFile(devicePath, os.O_RDWR, os.ModePerm)
-	if err != nil {
-		panic(err)
-	}
-	defer deviceFile.Close()
-
-	log.Println("Connected on", devicePath)
+	log.Println("Connected on", deviceFile.Name())
 
 	output := backend.NewMemoryBackend(make([]byte, size))
 
