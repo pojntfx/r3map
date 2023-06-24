@@ -28,6 +28,7 @@ func main() {
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
+	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 
 	flag.Parse()
 
@@ -105,76 +106,145 @@ func main() {
 		}),
 	)
 
-	leecher := migration.NewFileLeecher(
-		ctx,
+	if *slice {
+		leecher := migration.NewSliceLeecher(
+			ctx,
 
-		backend.NewMemoryBackend(make([]byte, size)),
-		peer,
+			backend.NewMemoryBackend(make([]byte, size)),
+			peer,
 
-		&migration.LeecherOptions{
-			ChunkSize: *chunkSize,
+			&migration.LeecherOptions{
+				ChunkSize: *chunkSize,
 
-			PullWorkers: *pullWorkers,
+				PullWorkers: *pullWorkers,
 
-			Verbose: *verbose,
-		},
-		&migration.FileLeecherHooks{
-			OnChunkIsLocal: func(off int64) error {
-				bar.Add(1)
-
-				return nil
+				Verbose: *verbose,
 			},
-			OnAfterSync: func(dirtyOffsets []int64) error {
-				bar.Clear()
+			&migration.SliceLeecherHooks{
+				OnChunkIsLocal: func(off int64) error {
+					bar.Add(1)
 
-				log.Printf("Invalidated %v dirty offsets", len(dirtyOffsets))
+					return nil
+				},
+				OnAfterSync: func(dirtyOffsets []int64) error {
+					bar.Clear()
 
-				bar.ChangeMax(chunkCount + len(dirtyOffsets))
+					log.Printf("Invalidated %v dirty offsets", len(dirtyOffsets))
 
-				bar.Describe("Finalizing")
+					bar.ChangeMax(chunkCount + len(dirtyOffsets))
 
-				return nil
+					bar.Describe("Finalizing")
+
+					return nil
+				},
 			},
-		},
 
-		nil,
-		nil,
-	)
+			nil,
+			nil,
+		)
 
-	errs := make(chan error)
-	go func() {
-		if err := leecher.Wait(); err != nil {
-			errs <- err
+		errs := make(chan error)
+		go func() {
+			if err := leecher.Wait(); err != nil {
+				errs <- err
 
-			return
+				return
+			}
+
+			close(errs)
+		}()
+
+		if err = leecher.Open(); err != nil {
+			panic(err)
+		}
+		defer leecher.Close()
+
+		log.Println("Press <ENTER> to finalize")
+
+		bufio.NewScanner(os.Stdin).Scan()
+
+		deviceSlice, err := leecher.Finalize()
+		if err != nil {
+			panic(err)
 		}
 
-		close(errs)
-	}()
+		log.Println("Connected to slice")
 
-	if err = leecher.Open(); err != nil {
-		panic(err)
-	}
-	defer leecher.Close()
+		output := make([]byte, size)
 
-	log.Println("Press <ENTER> to finalize")
+		copy(output, deviceSlice)
+	} else {
+		leecher := migration.NewFileLeecher(
+			ctx,
 
-	bufio.NewScanner(os.Stdin).Scan()
+			backend.NewMemoryBackend(make([]byte, size)),
+			peer,
 
-	deviceFile, err := leecher.Finalize()
-	if err != nil {
-		panic(err)
-	}
+			&migration.LeecherOptions{
+				ChunkSize: *chunkSize,
 
-	log.Println("Connected on", deviceFile.Name())
+				PullWorkers: *pullWorkers,
 
-	output := backend.NewMemoryBackend(make([]byte, size))
+				Verbose: *verbose,
+			},
+			&migration.FileLeecherHooks{
+				OnChunkIsLocal: func(off int64) error {
+					bar.Add(1)
 
-	if _, err := io.CopyN(
-		io.NewOffsetWriter(
-			output,
-			0,
-		), deviceFile, size); err != nil {
-		panic(err)
+					return nil
+				},
+				OnAfterSync: func(dirtyOffsets []int64) error {
+					bar.Clear()
+
+					log.Printf("Invalidated %v dirty offsets", len(dirtyOffsets))
+
+					bar.ChangeMax(chunkCount + len(dirtyOffsets))
+
+					bar.Describe("Finalizing")
+
+					return nil
+				},
+			},
+
+			nil,
+			nil,
+		)
+
+		errs := make(chan error)
+		go func() {
+			if err := leecher.Wait(); err != nil {
+				errs <- err
+
+				return
+			}
+
+			close(errs)
+		}()
+
+		if err = leecher.Open(); err != nil {
+			panic(err)
+		}
+		defer leecher.Close()
+
+		log.Println("Press <ENTER> to finalize")
+
+		bufio.NewScanner(os.Stdin).Scan()
+
+		deviceFile, err := leecher.Finalize()
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println("Connected on", deviceFile.Name())
+
+		output := backend.NewMemoryBackend(make([]byte, size))
+
+		if _, err := io.CopyN(
+			io.NewOffsetWriter(
+				output,
+				0,
+			), deviceFile, size); err != nil {
+			panic(err)
+		}
 	}
 }
