@@ -10,8 +10,6 @@ import (
 )
 
 type FileSeederHooks struct {
-	OnBeforeSync func() error
-
 	OnAfterClose func() error
 }
 
@@ -32,7 +30,6 @@ func NewFileSeeder(
 ) *FileSeeder {
 	h := &SeederHooks{}
 	if hooks != nil {
-		h.OnBeforeSync = hooks.OnBeforeSync
 		h.OnAfterClose = hooks.OnAfterClose
 	}
 
@@ -47,6 +44,8 @@ func NewFileSeeder(
 			clientOptions,
 		),
 	}
+
+	s.path.hooks.OnBeforeSync = s.onBeforeSync
 
 	s.path.hooks.OnBeforeClose = s.onBeforeClose
 
@@ -74,6 +73,16 @@ func (s *FileSeeder) Open() (*os.File, *services.Seeder, error) {
 func (s *FileSeeder) onBeforeClose() error {
 	if s.deviceFile != nil {
 		_ = s.deviceFile.Close()
+	}
+
+	return nil
+}
+
+func (s *FileSeeder) onBeforeSync() error {
+	if s.deviceFile != nil {
+		if err := s.deviceFile.Sync(); err != nil {
+			return nil
+		}
 	}
 
 	return nil

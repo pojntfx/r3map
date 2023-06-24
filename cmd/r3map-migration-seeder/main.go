@@ -32,13 +32,7 @@ func main() {
 
 			Verbose: *verbose,
 		},
-		&migration.FileSeederHooks{
-			OnBeforeSync: func() error {
-				log.Println("Syncing")
-
-				return nil
-			},
-		},
+		&migration.FileSeederHooks{},
 
 		nil,
 		nil,
