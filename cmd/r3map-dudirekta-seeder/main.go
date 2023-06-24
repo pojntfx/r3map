@@ -24,10 +24,8 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	b := backend.NewMemoryBackend(make([]byte, *size))
-
 	seeder := migration.NewSeeder(
-		b,
+		backend.NewMemoryBackend(make([]byte, *size)),
 
 		&migration.SeederOptions{
 			ChunkSize: *chunkSize,

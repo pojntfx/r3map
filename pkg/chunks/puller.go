@@ -10,10 +10,10 @@ import (
 type Puller struct {
 	backend io.ReaderAt
 
-	chunkSize        int64
-	chunks           int64
-	finalized        bool
-	finalizePullCond *sync.Cond
+	chunkSize    int64
+	chunks       int64
+	finalized    bool
+	finalizeCond *sync.Cond
 
 	errs   chan error
 	ctx    context.Context
@@ -58,7 +58,7 @@ func NewPuller(
 		chunkIndexes: chunkIndexes,
 	}
 
-	puller.finalizePullCond = sync.NewCond(&sync.Mutex{})
+	puller.finalizeCond = sync.NewCond(&sync.Mutex{})
 
 	return puller
 }
@@ -77,13 +77,13 @@ func (p *Puller) getNextChunk() int64 {
 	p.nextChunkAndFinalizedLock.Lock()
 
 	if !p.finalized && p.nextChunk >= p.chunks-1 {
-		p.finalizePullCond.L.Lock()
+		p.finalizeCond.L.Lock()
 
 		p.nextChunkAndFinalizedLock.Unlock()
-		p.finalizePullCond.Wait()
+		p.finalizeCond.Wait()
 		p.nextChunkAndFinalizedLock.Lock()
 
-		p.finalizePullCond.L.Unlock()
+		p.finalizeCond.L.Unlock()
 	}
 
 	nextChunk := p.nextChunk
@@ -123,7 +123,7 @@ func (p *Puller) pullChunks() {
 	}
 }
 
-func (p *Puller) FinalizePull(dirtyOffsets []int64) {
+func (p *Puller) Finalize(dirtyOffsets []int64) {
 	p.nextChunkAndFinalizedLock.Lock()
 	defer p.nextChunkAndFinalizedLock.Unlock()
 
@@ -140,9 +140,9 @@ func (p *Puller) FinalizePull(dirtyOffsets []int64) {
 
 	p.finalized = true
 
-	p.finalizePullCond.L.Lock()
-	p.finalizePullCond.Broadcast()
-	p.finalizePullCond.L.Unlock()
+	p.finalizeCond.L.Lock()
+	p.finalizeCond.Broadcast()
+	p.finalizeCond.L.Unlock()
 }
 
 func (p *Puller) Wait() error {

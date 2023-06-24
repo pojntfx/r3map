@@ -84,7 +84,7 @@ func (s *Seeder) Wait() error {
 	return nil
 }
 
-func (s *Seeder) Open() (string, int64, *services.Source, error) {
+func (s *Seeder) Open() (string, int64, *services.Seeder, error) {
 	size, err := s.local.Size()
 	if err != nil {
 		return "", 0, nil, err
@@ -140,7 +140,7 @@ func (s *Seeder) Open() (string, int64, *services.Source, error) {
 	}
 
 	flushed := false
-	return devicePath, size, services.NewSource(
+	return devicePath, size, services.NewSeeder(
 			b,
 			s.options.Verbose,
 			func() error {

@@ -294,7 +294,7 @@ func TestPuller(t *testing.T) {
 				}
 			}
 
-			puller.FinalizePull(tc.dirtyOffsets)
+			puller.Finalize(tc.dirtyOffsets)
 
 			wg.Add(1)
 			go func() {

@@ -7,7 +7,7 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/backend"
 )
 
-type SourceRemote struct {
+type SeederRemote struct {
 	ReadAt func(context context.Context, length int, off int64) (r ReadAtResponse, err error)
 	Size   func(context context.Context) (int64, error)
 	Track  func(context context.Context) error
@@ -15,7 +15,7 @@ type SourceRemote struct {
 	Close  func(context context.Context) error
 }
 
-type Source struct {
+type Seeder struct {
 	b       backend.Backend
 	verbose bool
 
@@ -24,17 +24,17 @@ type Source struct {
 	close func() error
 }
 
-func NewSource(
+func NewSeeder(
 	b backend.Backend,
 	verbose bool,
 	track func() error,
 	flush func() ([]int64, error),
 	close func() error,
-) *Source {
-	return &Source{b, verbose, track, flush, close}
+) *Seeder {
+	return &Seeder{b, verbose, track, flush, close}
 }
 
-func (b *Source) ReadAt(context context.Context, length int, off int64) (r ReadAtResponse, err error) {
+func (b *Seeder) ReadAt(context context.Context, length int, off int64) (r ReadAtResponse, err error) {
 	if b.verbose {
 		log.Printf("ReadAt(len(p) = %v, off = %v)", length, off)
 	}
@@ -48,7 +48,7 @@ func (b *Source) ReadAt(context context.Context, length int, off int64) (r ReadA
 	return
 }
 
-func (b *Source) Size(context context.Context) (int64, error) {
+func (b *Seeder) Size(context context.Context) (int64, error) {
 	if b.verbose {
 		log.Println("Size()")
 	}
@@ -56,7 +56,7 @@ func (b *Source) Size(context context.Context) (int64, error) {
 	return b.b.Size()
 }
 
-func (b *Source) Track(context context.Context) error {
+func (b *Seeder) Track(context context.Context) error {
 	if b.verbose {
 		log.Println("Track()")
 	}
@@ -64,7 +64,7 @@ func (b *Source) Track(context context.Context) error {
 	return b.track()
 }
 
-func (b *Source) Flush(context context.Context) ([]int64, error) {
+func (b *Seeder) Flush(context context.Context) ([]int64, error) {
 	if b.verbose {
 		log.Println("Flush()")
 	}
@@ -72,7 +72,7 @@ func (b *Source) Flush(context context.Context) ([]int64, error) {
 	return b.flush()
 }
 
-func (b *Source) Close(context context.Context) error {
+func (b *Seeder) Close(context context.Context) error {
 	if b.verbose {
 		log.Println("Close()")
 	}

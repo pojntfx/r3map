@@ -19,40 +19,14 @@ import (
 	"github.com/schollz/progressbar/v3"
 )
 
-type rpcReaderAt struct {
-	ctx context.Context
-
-	remote *services.SourceRemote
-
-	verbose bool
-}
-
-func (b *rpcReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
-	if b.verbose {
-		log.Printf("ReadAt(len(p) = %v, off = %v)", len(p), off)
-	}
-
-	r, err := b.remote.ReadAt(b.ctx, len(p), off)
-	if err != nil {
-		return -1, err
-	}
-
-	n = r.N
-	copy(p, r.P)
-
-	return
-}
-
 var (
 	errNoPeerFound = errors.New("no peer found")
 )
 
 func main() {
-	raddr := flag.String("raddr", "localhost:1337", "Remote address")
-
+	raddr := flag.String("raddr", ":1337", "Listen address")
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")
-
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
 	flag.Parse()
@@ -63,7 +37,7 @@ func main() {
 	ready := make(chan struct{})
 	registry := rpc.NewRegistry(
 		&struct{}{},
-		services.SourceRemote{},
+		services.SeederRemote{},
 
 		time.Second*10,
 		ctx,
@@ -93,7 +67,7 @@ func main() {
 
 	log.Println("Connected to", conn.RemoteAddr())
 
-	var peer *services.SourceRemote
+	var peer *services.SeederRemote
 	for _, candidate := range registry.Peers() {
 		peer = &candidate
 
@@ -108,10 +82,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	local := backend.NewMemoryBackend(make([]byte, size))
-
-	output := backend.NewMemoryBackend(make([]byte, size))
 
 	chunkCount := int(size / *chunkSize)
 
@@ -135,36 +105,20 @@ func main() {
 		}),
 	)
 
-	mnt := migration.NewDestination(
+	leecher := migration.NewLeecher(
 		ctx,
 
-		&rpcReaderAt{
-			ctx,
-			peer,
-			*verbose,
-		},
-		size,
+		backend.NewMemoryBackend(make([]byte, size)),
+		peer,
 
-		func() error {
-			return peer.Track(ctx)
-		},
-		func() ([]int64, error) {
-			return peer.Flush(ctx)
-		},
-		func() error {
-			return peer.Close(ctx)
-		},
-
-		local,
-
-		&migration.DestinationOptions{
+		&migration.LeecherOptions{
 			ChunkSize: *chunkSize,
 
 			PullWorkers: *pullWorkers,
 
 			Verbose: *verbose,
 		},
-		&migration.DestinationHooks{
+		&migration.LeecherHooks{
 			OnChunkIsLocal: func(off int64) error {
 				bar.Add(1)
 
@@ -175,9 +129,9 @@ func main() {
 
 				log.Printf("Invalidated %v dirty offsets", len(dirtyOffsets))
 
-				bar.Describe("Finalizing")
-
 				bar.ChangeMax(chunkCount + len(dirtyOffsets))
+
+				bar.Describe("Finalizing")
 
 				return nil
 			},
@@ -187,17 +141,33 @@ func main() {
 		nil,
 	)
 
+	output := backend.NewMemoryBackend(make([]byte, size))
+
+	errs := make(chan error)
 	go func() {
-		if err := mnt.Wait(); err != nil {
-			panic(err)
+		if err := leecher.Wait(); err != nil {
+			errs <- err
+
+			return
 		}
+
+		close(errs)
 	}()
 
-	devicePath, err := mnt.Open()
+	_, err = leecher.Open()
 	if err != nil {
 		panic(err)
 	}
-	defer mnt.Close()
+	defer leecher.Close()
+
+	log.Println("Press <ENTER> to finalize")
+
+	bufio.NewScanner(os.Stdin).Scan()
+
+	devicePath, err := leecher.Finalize()
+	if err != nil {
+		panic(err)
+	}
 
 	deviceFile, err := os.OpenFile(devicePath, os.O_RDWR, os.ModePerm)
 	if err != nil {
@@ -205,17 +175,8 @@ func main() {
 	}
 	defer deviceFile.Close()
 
-	log.Println("Press <ENTER> to finalize pull")
+	log.Println("Connected on", devicePath)
 
-	bufio.NewScanner(os.Stdin).Scan()
-
-	bar.Describe("Flushing")
-
-	if err := mnt.FinalizePull(); err != nil {
-		panic(err)
-	}
-
-	// Before we can access this, we _need_ to have called `FinalizePull`
 	if _, err := io.CopyN(
 		io.NewOffsetWriter(
 			output,
