@@ -48,11 +48,15 @@ type LeecherOptions struct {
 }
 
 type LeecherHooks struct {
+	OnAfterSync func(dirtyOffsets []int64) error
+
+	OnBeforeClose func() error
+	OnAfterClose  func() error
+
 	OnChunkIsLocal func(off int64) error
-	OnAfterSync    func(dirtyOffsets []int64) error
 }
 
-type FileLeecher struct {
+type PathLeecher struct {
 	ctx context.Context
 
 	local  backend.Backend
@@ -75,7 +79,7 @@ type FileLeecher struct {
 	errs chan error
 }
 
-func NewFileLeecher(
+func NewPathLeecher(
 	ctx context.Context,
 
 	local backend.Backend,
@@ -86,7 +90,7 @@ func NewFileLeecher(
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *FileLeecher {
+) *PathLeecher {
 	if options == nil {
 		options = &LeecherOptions{}
 	}
@@ -109,7 +113,7 @@ func NewFileLeecher(
 		hooks = &LeecherHooks{}
 	}
 
-	return &FileLeecher{
+	return &PathLeecher{
 		ctx: ctx,
 
 		local:  local,
@@ -125,7 +129,7 @@ func NewFileLeecher(
 	}
 }
 
-func (l *FileLeecher) Wait() error {
+func (l *PathLeecher) Wait() error {
 	for err := range l.errs {
 		if err != nil {
 			return err
@@ -135,7 +139,7 @@ func (l *FileLeecher) Wait() error {
 	return nil
 }
 
-func (l *FileLeecher) Open() (int64, error) {
+func (l *PathLeecher) Open() (int64, error) {
 	ready := make(chan struct{})
 
 	go func() {
@@ -248,7 +252,7 @@ func (l *FileLeecher) Open() (int64, error) {
 	return size, nil
 }
 
-func (l *FileLeecher) Finalize() (string, error) {
+func (l *PathLeecher) Finalize() (string, error) {
 	dirtyOffsets, err := l.remote.Sync(l.ctx)
 	if err != nil {
 		return "", err
@@ -271,9 +275,21 @@ func (l *FileLeecher) Finalize() (string, error) {
 	return l.devicePath, nil
 }
 
-func (l *FileLeecher) Close() error {
+func (l *PathLeecher) Close() error {
+	if hook := l.hooks.OnBeforeClose; hook != nil {
+		if err := hook(); err != nil {
+			return err
+		}
+	}
+
 	if l.dev != nil {
 		_ = l.dev.Close()
+	}
+
+	if hook := l.hooks.OnAfterClose; hook != nil {
+		if err := hook(); err != nil {
+			return err
+		}
 	}
 
 	if l.puller != nil {

@@ -32,7 +32,7 @@ func main() {
 
 			Verbose: *verbose,
 		},
-		&migration.SeederHooks{
+		&migration.FileSeederHooks{
 			OnBeforeSync: func() error {
 				log.Println("Syncing")
 
@@ -55,13 +55,13 @@ func main() {
 		close(errs)
 	}()
 
-	devicePath, _, svc, err := seeder.Open()
+	deviceFile, svc, err := seeder.Open()
 	if err != nil {
 		panic(err)
 	}
 	defer seeder.Close()
 
-	log.Println("Connected on", devicePath)
+	log.Println("Connected on", deviceFile.Name())
 
 	clients := 0
 	registry := rpc.NewRegistry(
