@@ -18,8 +18,9 @@ import (
 type Options struct {
 	ChunkSize int64
 
-	PullWorkers int64
-	PullFirst   bool
+	PullWorkers  int64
+	PullPriority func(off int64) int64
+	PullFirst    bool
 
 	PushWorkers  int64
 	PushInterval time.Duration
@@ -76,6 +77,16 @@ func NewPathFrontend(
 
 	if options.ChunkSize <= 0 {
 		options.ChunkSize = 4096
+	}
+
+	if options.PullWorkers <= 0 {
+		options.PullWorkers = 512
+	}
+
+	if options.PullPriority == nil {
+		options.PullPriority = func(off int64) int64 {
+			return 1
+		}
 	}
 
 	if options.PushInterval == 0 {
@@ -181,8 +192,8 @@ func (m *PathFrontend) Open() (string, int64, error) {
 			syncedReadWriter,
 			m.options.ChunkSize,
 			chunkCount,
-			func(offset int64) int64 {
-				return 1
+			func(off int64) int64 {
+				return m.options.PullPriority(off)
 			},
 		)
 

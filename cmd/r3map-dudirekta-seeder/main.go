@@ -34,7 +34,7 @@ func main() {
 		},
 		&migration.SeederHooks{
 			OnBeforeFlush: func() error {
-				log.Println("Flushing ...")
+				log.Println("Flushing")
 
 				return nil
 			},

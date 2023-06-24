@@ -31,7 +31,7 @@ func NewPuller(
 	ctx context.Context,
 	backend io.ReaderAt,
 	chunkSize, chunks int64,
-	pullPriority func(offset int64) int64,
+	pullPriority func(off int64) int64,
 ) *Puller {
 	ctx, cancel := context.WithCancel(ctx)
 

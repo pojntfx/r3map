@@ -15,7 +15,7 @@ func TestPuller(t *testing.T) {
 		chunks                 int64
 		workers                int64
 		data                   [][]byte
-		pullPriority           func(offset int64) int64
+		pullPriority           func(off int64) int64
 		dirtyOffsets           []int64
 		waitTillFullyAvailable bool
 		modifyData             bool
@@ -26,7 +26,7 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   1,
 			data:      [][]byte{[]byte("test")},
-			pullPriority: func(offset int64) int64 {
+			pullPriority: func(off int64) int64 {
 				return 1
 			},
 			dirtyOffsets: []int64{},
@@ -37,7 +37,7 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   2,
 			data:      [][]byte{[]byte("test")},
-			pullPriority: func(offset int64) int64 {
+			pullPriority: func(off int64) int64 {
 				return 1
 			},
 			dirtyOffsets: []int64{},
@@ -48,7 +48,7 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   1,
 			data:      [][]byte{[]byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
+			pullPriority: func(off int64) int64 {
 				return 1
 			},
 			dirtyOffsets: []int64{},
@@ -59,7 +59,7 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   2,
 			data:      [][]byte{[]byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
+			pullPriority: func(off int64) int64 {
 				return 1
 			},
 			dirtyOffsets: []int64{},
@@ -70,8 +70,8 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   1,
 			data:      [][]byte{[]byte("test")},
-			pullPriority: func(offset int64) int64 {
-				return offset
+			pullPriority: func(off int64) int64 {
+				return off
 			},
 			dirtyOffsets: []int64{},
 		},
@@ -81,8 +81,8 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   2,
 			data:      [][]byte{[]byte("test")},
-			pullPriority: func(offset int64) int64 {
-				return offset
+			pullPriority: func(off int64) int64 {
+				return off
 			},
 			dirtyOffsets: []int64{},
 		},
@@ -92,8 +92,8 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   1,
 			data:      [][]byte{[]byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
-				return offset
+			pullPriority: func(off int64) int64 {
+				return off
 			},
 			dirtyOffsets: []int64{},
 		},
@@ -103,8 +103,8 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   2,
 			data:      [][]byte{[]byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
-				return offset
+			pullPriority: func(off int64) int64 {
+				return off
 			},
 			dirtyOffsets: []int64{},
 		},
@@ -114,8 +114,8 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   1,
 			data:      [][]byte{[]byte("test")},
-			pullPriority: func(offset int64) int64 {
-				return -offset
+			pullPriority: func(off int64) int64 {
+				return -off
 			},
 			dirtyOffsets: []int64{},
 		},
@@ -125,8 +125,8 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   2,
 			data:      [][]byte{[]byte("test")},
-			pullPriority: func(offset int64) int64 {
-				return -offset
+			pullPriority: func(off int64) int64 {
+				return -off
 			},
 			dirtyOffsets: []int64{},
 		},
@@ -136,8 +136,8 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   1,
 			data:      [][]byte{[]byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
-				return -offset
+			pullPriority: func(off int64) int64 {
+				return -off
 			},
 			dirtyOffsets: []int64{},
 		},
@@ -147,8 +147,8 @@ func TestPuller(t *testing.T) {
 			chunks:    2,
 			workers:   2,
 			data:      [][]byte{[]byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
-				return -offset
+			pullPriority: func(off int64) int64 {
+				return -off
 			},
 			dirtyOffsets: []int64{},
 		},
@@ -158,7 +158,7 @@ func TestPuller(t *testing.T) {
 			chunks:    3,
 			workers:   1,
 			data:      [][]byte{[]byte("test"), []byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
+			pullPriority: func(off int64) int64 {
 				return 1
 			},
 			dirtyOffsets: []int64{},
@@ -169,7 +169,7 @@ func TestPuller(t *testing.T) {
 			chunks:    3,
 			workers:   2,
 			data:      [][]byte{[]byte("test"), []byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
+			pullPriority: func(off int64) int64 {
 				return 1
 			},
 			dirtyOffsets: []int64{8},
@@ -180,7 +180,7 @@ func TestPuller(t *testing.T) {
 			chunks:    3,
 			workers:   2,
 			data:      [][]byte{[]byte("test"), []byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
+			pullPriority: func(off int64) int64 {
 				return 1
 			},
 			dirtyOffsets: []int64{0, 4, 8},
@@ -191,7 +191,7 @@ func TestPuller(t *testing.T) {
 			chunks:    3,
 			workers:   2,
 			data:      [][]byte{[]byte("test"), []byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
+			pullPriority: func(off int64) int64 {
 				return 1
 			},
 			dirtyOffsets:           []int64{0, 4, 8},
@@ -203,7 +203,7 @@ func TestPuller(t *testing.T) {
 			chunks:    3,
 			workers:   2,
 			data:      [][]byte{[]byte("test"), []byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
+			pullPriority: func(off int64) int64 {
 				return 1
 			},
 			dirtyOffsets:           []int64{4},
@@ -216,7 +216,7 @@ func TestPuller(t *testing.T) {
 			chunks:    3,
 			workers:   2,
 			data:      [][]byte{[]byte("test"), []byte("test"), []byte("test")},
-			pullPriority: func(offset int64) int64 {
+			pullPriority: func(off int64) int64 {
 				return 1
 			},
 			dirtyOffsets:           []int64{4},

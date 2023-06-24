@@ -41,7 +41,8 @@ var (
 type LeecherOptions struct {
 	ChunkSize int64
 
-	PullWorkers int64
+	PullWorkers  int64
+	PullPriority func(off int64) int64
 
 	Verbose bool
 }
@@ -97,6 +98,12 @@ func NewLeecher(
 
 	if options.PullWorkers <= 0 {
 		options.PullWorkers = 512
+	}
+
+	if options.PullPriority == nil {
+		options.PullPriority = func(off int64) int64 {
+			return 1
+		}
 	}
 
 	if hooks == nil {
@@ -176,8 +183,8 @@ func (l *Leecher) Open() (int64, error) {
 		l.syncedReadWriter,
 		l.options.ChunkSize,
 		chunkCount,
-		func(offset int64) int64 {
-			return 1
+		func(off int64) int64 {
+			return l.options.PullPriority(off)
 		},
 	)
 
