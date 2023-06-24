@@ -10,6 +10,7 @@ import (
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/migration"
+	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
 )
 
@@ -18,44 +19,85 @@ func main() {
 	size := flag.Int64("size", 4096*8192, "Size of the memory region to expose")
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
+	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 
 	flag.Parse()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	seeder := migration.NewFileSeeder(
-		backend.NewMemoryBackend(make([]byte, *size)),
-
-		&migration.SeederOptions{
-			ChunkSize: *chunkSize,
-
-			Verbose: *verbose,
-		},
-		&migration.FileSeederHooks{},
-
-		nil,
-		nil,
+	var (
+		svc  *services.Seeder
+		errs = make(chan error)
 	)
+	if *slice {
+		seeder := migration.NewSliceSeeder(
+			backend.NewMemoryBackend(make([]byte, *size)),
 
-	errs := make(chan error)
-	go func() {
-		if err := seeder.Wait(); err != nil {
-			errs <- err
+			&migration.SeederOptions{
+				ChunkSize: *chunkSize,
 
-			return
+				Verbose: *verbose,
+			},
+
+			nil,
+			nil,
+		)
+
+		go func() {
+			if err := seeder.Wait(); err != nil {
+				errs <- err
+
+				return
+			}
+
+			close(errs)
+		}()
+
+		_, s, err := seeder.Open()
+		if err != nil {
+			panic(err)
 		}
+		defer seeder.Close()
 
-		close(errs)
-	}()
+		svc = s
 
-	deviceFile, svc, err := seeder.Open()
-	if err != nil {
-		panic(err)
+		log.Println("Connected to slice")
+	} else {
+		seeder := migration.NewFileSeeder(
+			backend.NewMemoryBackend(make([]byte, *size)),
+
+			&migration.SeederOptions{
+				ChunkSize: *chunkSize,
+
+				Verbose: *verbose,
+			},
+			&migration.FileSeederHooks{},
+
+			nil,
+			nil,
+		)
+
+		go func() {
+			if err := seeder.Wait(); err != nil {
+				errs <- err
+
+				return
+			}
+
+			close(errs)
+		}()
+
+		deviceFile, s, err := seeder.Open()
+		if err != nil {
+			panic(err)
+		}
+		defer seeder.Close()
+
+		svc = s
+
+		log.Println("Connected on", deviceFile.Name())
 	}
-	defer seeder.Close()
-
-	log.Println("Connected on", deviceFile.Name())
 
 	clients := 0
 	registry := rpc.NewRegistry(
