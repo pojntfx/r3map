@@ -48,10 +48,10 @@ func main() {
 		}
 	}()
 
-	leecherOpened := make(chan struct{})
-	defer close(leecherOpened)
-
-	var svc *services.Seeder
+	var (
+		svc               *services.Seeder
+		invalidateLeecher func() error
+	)
 	if *slice {
 		seeder := migration.NewSliceSeeder(
 			backend.NewMemoryBackend(make([]byte, *rawSize)),
@@ -82,12 +82,7 @@ func main() {
 		}
 		defer seeder.Close()
 
-		go func() {
-			_, ok := <-leecherOpened
-			if !ok {
-				return
-			}
-
+		invalidateLeecher = func() error {
 			copy(
 				deviceSlice,
 				make([]byte,
@@ -96,7 +91,9 @@ func main() {
 					)),
 				),
 			)
-		}()
+
+			return nil
+		}
 
 		svc = s
 
@@ -132,12 +129,7 @@ func main() {
 		}
 		defer seeder.Close()
 
-		go func() {
-			_, ok := <-leecherOpened
-			if !ok {
-				return
-			}
-
+		invalidateLeecher = func() error {
 			if _, err := io.CopyN(
 				deviceFile,
 				rand.Reader,
@@ -145,11 +137,11 @@ func main() {
 					float64(*rawSize)*(float64(*invalidate)/float64(100)),
 				)),
 			); err != nil {
-				seederErrs <- err
-
-				return
+				return err
 			}
-		}()
+
+			return nil
+		}
 
 		svc = s
 
@@ -265,7 +257,9 @@ func main() {
 
 		fmt.Printf("Open: %v\n", afterOpen)
 
-		leecherOpened <- struct{}{}
+		if err := invalidateLeecher(); err != nil {
+			panic(err)
+		}
 
 		log.Println("Press <ENTER> to finalize")
 
@@ -353,7 +347,9 @@ func main() {
 
 		fmt.Printf("Open: %v\n", afterOpen)
 
-		leecherOpened <- struct{}{}
+		if err := invalidateLeecher(); err != nil {
+			panic(err)
+		}
 
 		log.Println("Press <ENTER> to finalize")
 
