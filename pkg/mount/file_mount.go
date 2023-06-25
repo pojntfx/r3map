@@ -79,7 +79,7 @@ func (m *FileMount) Open() (*os.File, error) {
 func (m *FileMount) onBeforeSync() error {
 	if m.deviceFile != nil {
 		if err := m.deviceFile.Sync(); err != nil {
-			return nil
+			return err
 		}
 	}
 

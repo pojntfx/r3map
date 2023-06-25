@@ -81,7 +81,7 @@ func (s *FileSeeder) onBeforeClose() error {
 func (s *FileSeeder) onBeforeSync() error {
 	if s.deviceFile != nil {
 		if err := s.deviceFile.Sync(); err != nil {
-			return nil
+			return err
 		}
 	}
 
