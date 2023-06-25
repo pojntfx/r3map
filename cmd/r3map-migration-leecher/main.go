@@ -107,6 +107,8 @@ func main() {
 		}),
 	)
 
+	bar.Add64(*chunkSize)
+
 	if *slice {
 		leecher := migration.NewSliceLeecher(
 			ctx,

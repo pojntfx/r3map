@@ -215,6 +215,8 @@ func main() {
 		}),
 	)
 
+	bar.Add64(*chunkSize)
+
 	var (
 		leecherBackend backend.Backend
 		outputReader   io.Reader
@@ -237,7 +239,7 @@ func main() {
 			},
 			&migration.SliceLeecherHooks{
 				OnChunkIsLocal: func(off int64) error {
-					bar.Add(int(*chunkSize))
+					bar.Add64(*chunkSize)
 
 					return nil
 				},
