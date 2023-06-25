@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -84,16 +85,16 @@ func main() {
 		panic(err)
 	}
 
-	chunkCount := int(size / *chunkSize)
-
 	bar := progressbar.NewOptions(
-		chunkCount,
+		int(size),
 		progressbar.OptionSetDescription("Pulling"),
-		progressbar.OptionSetItsString("chunk"),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionOnCompletion(func() {
+			fmt.Fprint(os.Stderr, "\n")
+		}),
 		progressbar.OptionSetWriter(os.Stderr),
 		progressbar.OptionThrottle(100*time.Millisecond),
 		progressbar.OptionShowCount(),
-		progressbar.OptionShowIts(),
 		progressbar.OptionFullWidth(),
 		// VT-100 compatibility
 		progressbar.OptionUseANSICodes(true),
@@ -122,16 +123,18 @@ func main() {
 			},
 			&migration.SliceLeecherHooks{
 				OnChunkIsLocal: func(off int64) error {
-					bar.Add(1)
+					bar.Add(int(*chunkSize))
 
 					return nil
 				},
 				OnAfterSync: func(dirtyOffsets []int64) error {
 					bar.Clear()
 
-					log.Printf("Invalidated %v dirty offsets", len(dirtyOffsets))
+					delta := (len(dirtyOffsets) * int(*chunkSize))
 
-					bar.ChangeMax(chunkCount + len(dirtyOffsets))
+					log.Printf("Invalidated: %.2f MB (%.2f Mb)", float64(delta)/(1024*1024), (float64(delta)/(1024*1024))*8)
+
+					bar.ChangeMax(int(size) + delta)
 
 					bar.Describe("Finalizing")
 
@@ -168,6 +171,8 @@ func main() {
 			panic(err)
 		}
 
+		bar.Clear()
+
 		log.Println("Connected to slice")
 
 		output := make([]byte, size)
@@ -189,16 +194,18 @@ func main() {
 			},
 			&migration.FileLeecherHooks{
 				OnChunkIsLocal: func(off int64) error {
-					bar.Add(1)
+					bar.Add(int(*chunkSize))
 
 					return nil
 				},
 				OnAfterSync: func(dirtyOffsets []int64) error {
 					bar.Clear()
 
-					log.Printf("Invalidated %v dirty offsets", len(dirtyOffsets))
+					delta := (len(dirtyOffsets) * int(*chunkSize))
 
-					bar.ChangeMax(chunkCount + len(dirtyOffsets))
+					log.Printf("Invalidated: %.2f MB (%.2f Mb)", float64(delta)/(1024*1024), (float64(delta)/(1024*1024))*8)
+
+					bar.ChangeMax(int(size) + delta)
 
 					bar.Describe("Finalizing")
 
@@ -226,6 +233,8 @@ func main() {
 		}
 		defer leecher.Close()
 
+		bar.Clear()
+
 		log.Println("Press <ENTER> to finalize")
 
 		bufio.NewScanner(os.Stdin).Scan()
@@ -234,6 +243,8 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+
+		bar.Clear()
 
 		log.Println("Connected on", deviceFile.Name())
 

@@ -285,8 +285,6 @@ func main() {
 			panic(err)
 		}
 
-		bar.Clear()
-
 		log.Println("Press <ENTER> to finalize")
 
 		bufio.NewScanner(os.Stdin).Scan()
@@ -382,8 +380,6 @@ func main() {
 		if err := invalidateLeecher(); err != nil {
 			panic(err)
 		}
-
-		bar.Clear()
 
 		log.Println("Press <ENTER> to finalize")
 
