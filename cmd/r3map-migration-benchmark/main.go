@@ -82,11 +82,11 @@ func main() {
 			close(seederErrs)
 		}()
 
+		defer seeder.Close()
 		deviceSlice, s, err := seeder.Open()
 		if err != nil {
 			panic(err)
 		}
-		defer seeder.Close()
 
 		invalidateLeecher = func() error {
 			b := make([]byte,
@@ -136,11 +136,11 @@ func main() {
 			close(seederErrs)
 		}()
 
+		defer seeder.Close()
 		deviceFile, s, err := seeder.Open()
 		if err != nil {
 			panic(err)
 		}
-		defer seeder.Close()
 
 		invalidateLeecher = func() error {
 			b := make([]byte,
@@ -274,10 +274,10 @@ func main() {
 
 		beforeOpen := time.Now()
 
+		defer leecher.Close()
 		if err := leecher.Open(); err != nil {
 			panic(err)
 		}
-		defer leecher.Close()
 
 		afterOpen := time.Since(beforeOpen)
 
@@ -370,10 +370,10 @@ func main() {
 
 		beforeOpen := time.Now()
 
+		defer leecher.Close()
 		if err := leecher.Open(); err != nil {
 			panic(err)
 		}
-		defer leecher.Close()
 
 		afterOpen := time.Since(beforeOpen)
 
