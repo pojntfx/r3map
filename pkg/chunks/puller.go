@@ -130,11 +130,23 @@ func (p *Puller) Finalize(dirtyOffsets []int64) {
 	p.chunkIndexesLock.Lock()
 	defer p.chunkIndexesLock.Unlock()
 
-	// Insert the dirty chunk indexes at the current pull position, so that they will be pulled immediately next
-	for _, dirtyOffset := range dirtyOffsets {
-		dirtyIndex := dirtyOffset / p.chunkSize
-		p.chunkIndexes = append(p.chunkIndexes[:p.nextChunk+1], append([]int64{dirtyIndex}, p.chunkIndexes[p.nextChunk+1:]...)...)
+	// Calculate dirty indexes once and store them
+	dirtyIndexes := make([]int64, len(dirtyOffsets))
+	for i, dirtyOffset := range dirtyOffsets {
+		dirtyIndexes[i] = dirtyOffset / p.chunkSize
 	}
+
+	// Create new slice with all elements before the insertion point
+	newChunkIndexes := make([]int64, p.nextChunk+1)
+	copy(newChunkIndexes, p.chunkIndexes[:p.nextChunk+1])
+
+	// Append dirty indexes
+	newChunkIndexes = append(newChunkIndexes, dirtyIndexes...)
+
+	// Append the remaining elements
+	newChunkIndexes = append(newChunkIndexes, p.chunkIndexes[p.nextChunk+1:]...)
+
+	p.chunkIndexes = newChunkIndexes
 
 	p.chunks += int64(len(dirtyOffsets))
 
