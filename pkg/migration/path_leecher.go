@@ -71,10 +71,11 @@ type PathLeecher struct {
 	serverFile *os.File
 	dev        *device.Device
 
-	devicePath       string
-	syncedReadWriter *chunks.SyncedReadWriterAt
-	puller           *chunks.Puller
-	syncer           backend.Backend
+	devicePath           string
+	syncedReadWriter     *chunks.SyncedReadWriterAt
+	puller               *chunks.Puller
+	syncer               backend.Backend
+	lockableReadWriterAt *chunks.LockableReadWriterAt
 
 	wg   sync.WaitGroup
 	errs chan error
@@ -212,10 +213,12 @@ func (l *PathLeecher) Open() (int64, error) {
 		return 0, err
 	}
 
-	arbitraryReadWriter := chunks.NewArbitraryReadWriterAt(l.syncedReadWriter, l.options.ChunkSize)
+	l.lockableReadWriterAt = chunks.NewLockableReadWriterAt(
+		chunks.NewArbitraryReadWriterAt(l.syncedReadWriter, l.options.ChunkSize),
+	)
 
 	l.syncer = bbackend.NewReaderAtBackend(
-		arbitraryReadWriter,
+		l.lockableReadWriterAt,
 		func() (int64, error) {
 			return size, nil
 		},
@@ -226,6 +229,29 @@ func (l *PathLeecher) Open() (int64, error) {
 		},
 		l.options.Verbose,
 	)
+
+	l.dev = device.NewDevice(
+		l.syncer,
+		l.serverFile,
+
+		l.serverOptions,
+		l.clientOptions,
+	)
+
+	l.wg.Add(1)
+	go func() {
+		defer l.wg.Done()
+
+		if err := l.dev.Wait(); err != nil {
+			l.errs <- err
+
+			return
+		}
+	}()
+
+	if err := l.dev.Open(); err != nil {
+		return 0, err
+	}
 
 	return size, nil
 }
@@ -250,28 +276,7 @@ func (l *PathLeecher) Finalize() (string, error) {
 		l.puller.Finalize(dirtyOffsets)
 	}
 
-	l.dev = device.NewDevice(
-		l.syncer,
-		l.serverFile,
-
-		l.serverOptions,
-		l.clientOptions,
-	)
-
-	l.wg.Add(1)
-	go func() {
-		defer l.wg.Done()
-
-		if err := l.dev.Wait(); err != nil {
-			l.errs <- err
-
-			return
-		}
-	}()
-
-	if err := l.dev.Open(); err != nil {
-		return "", err
-	}
+	l.lockableReadWriterAt.Unlock()
 
 	return l.devicePath, nil
 }
