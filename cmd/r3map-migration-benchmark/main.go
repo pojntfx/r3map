@@ -90,9 +90,9 @@ func main() {
 
 		invalidateLeecher = func() error {
 			b := make([]byte,
-					int64(math.Floor(
-						float64(*rawSize)*(float64(*invalidate)/float64(100)),
-					)),
+				int64(math.Floor(
+					float64(*rawSize)*(float64(*invalidate)/float64(100)),
+				)),
 			)
 			if _, err := rand.Read(b); err != nil {
 				return err
@@ -144,9 +144,9 @@ func main() {
 
 		invalidateLeecher = func() error {
 			b := make([]byte,
-					int64(math.Floor(
-						float64(*rawSize)*(float64(*invalidate)/float64(100)),
-					)),
+				int64(math.Floor(
+					float64(*rawSize)*(float64(*invalidate)/float64(100)),
+				)),
 			)
 			if _, err := rand.Read(b); err != nil {
 				return err
@@ -272,8 +272,7 @@ func main() {
 
 		beforeOpen := time.Now()
 
-		deviceSlice, err := leecher.Open()
-		if err != nil {
+		if err := leecher.Open(); err != nil {
 			panic(err)
 		}
 		defer leecher.Close()
@@ -286,17 +285,22 @@ func main() {
 			panic(err)
 		}
 
+		bar.Clear()
+
 		log.Println("Press <ENTER> to finalize")
 
 		bufio.NewScanner(os.Stdin).Scan()
 
 		beforeFinalize := time.Now()
 
-		if err := leecher.Finalize(); err != nil {
+		deviceSlice, err := leecher.Finalize()
+		if err != nil {
 			panic(err)
 		}
 
 		afterFinalize := time.Since(beforeFinalize)
+
+		bar.Clear()
 
 		fmt.Printf("Finalize: %v\n", afterFinalize)
 
@@ -366,8 +370,7 @@ func main() {
 
 		beforeOpen := time.Now()
 
-		deviceFile, err := leecher.Open()
-		if err != nil {
+		if err := leecher.Open(); err != nil {
 			panic(err)
 		}
 		defer leecher.Close()
@@ -380,17 +383,22 @@ func main() {
 			panic(err)
 		}
 
+		bar.Clear()
+
 		log.Println("Press <ENTER> to finalize")
 
 		bufio.NewScanner(os.Stdin).Scan()
 
 		beforeFinalize := time.Now()
 
-		if err := leecher.Finalize(); err != nil {
+		deviceFile, err := leecher.Finalize()
+		if err != nil {
 			panic(err)
 		}
 
 		afterFinalize := time.Since(beforeFinalize)
+
+		bar.Clear()
 
 		fmt.Printf("Finalize: %v\n", afterFinalize)
 

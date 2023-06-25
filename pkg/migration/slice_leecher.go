@@ -25,6 +25,7 @@ type SliceLeecher struct {
 
 	slice     mmap.MMap
 	mmapMount sync.Mutex
+	size      int64
 }
 
 func NewSliceLeecher(
@@ -71,36 +72,40 @@ func (l *SliceLeecher) Wait() error {
 	return l.path.Wait()
 }
 
-// Do not read or write from the returned slice before `Finalize()` has been called
-// If you read before `Finalize()`, you'll get incomplete data but no corruption
-// If you write before `Finalize()`, you'll corrupt the received data
-func (l *SliceLeecher) Open() ([]byte, error) {
-	devicePath, size, err := l.path.Open()
+func (l *SliceLeecher) Open() error {
+	size, err := l.path.Open()
 	if err != nil {
-		return []byte{}, err
+		return err
+	}
+
+	l.size = size
+
+	return nil
+}
+
+func (l *SliceLeecher) Finalize() ([]byte, error) {
+	devicePath, err := l.path.Finalize()
+	if err != nil {
+		return nil, err
 	}
 
 	l.deviceFile, err = os.OpenFile(devicePath, os.O_RDWR, os.ModePerm)
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
-	l.slice, err = mmap.MapRegion(l.deviceFile, int(size), mmap.RDWR, 0, 0)
+	l.slice, err = mmap.MapRegion(l.deviceFile, int(l.size), mmap.RDWR, 0, 0)
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	// We _MUST_ lock this slice so that it does not get paged out
 	// If it does, the Go GC tries to manage it, deadlocking _the entire runtime_
 	if err := l.slice.Lock(); err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	return l.slice, nil
-}
-
-func (l *SliceLeecher) Finalize() error {
-	return l.path.Finalize()
 }
 
 func (l *SliceLeecher) onBeforeClose() error {

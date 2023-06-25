@@ -154,8 +154,7 @@ func main() {
 			close(errs)
 		}()
 
-		deviceSlice, err := leecher.Open()
-		if err != nil {
+		if err := leecher.Open(); err != nil {
 			panic(err)
 		}
 		defer leecher.Close()
@@ -164,7 +163,8 @@ func main() {
 
 		bufio.NewScanner(os.Stdin).Scan()
 
-		if err := leecher.Finalize(); err != nil {
+		deviceSlice, err := leecher.Finalize()
+		if err != nil {
 			panic(err)
 		}
 
@@ -221,8 +221,7 @@ func main() {
 			close(errs)
 		}()
 
-		deviceFile, err := leecher.Open()
-		if err != nil {
+		if err := leecher.Open(); err != nil {
 			panic(err)
 		}
 		defer leecher.Close()
@@ -231,7 +230,8 @@ func main() {
 
 		bufio.NewScanner(os.Stdin).Scan()
 
-		if err := leecher.Finalize(); err != nil {
+		deviceFile, err := leecher.Finalize()
+		if err != nil {
 			panic(err)
 		}
 
