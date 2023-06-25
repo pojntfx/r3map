@@ -2,8 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
-	"crypto/rand"
 	"flag"
 	"fmt"
 	"io"
@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/services"
@@ -26,6 +27,7 @@ func main() {
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	invalidate := flag.Int("invalidate", 0, "Percentage of chunks (0-100) to invalidate in between Track() and Finalize()")
+	check := flag.Bool("check", true, "Whether to check read results against expected data")
 
 	flag.Parse()
 
@@ -51,10 +53,13 @@ func main() {
 	var (
 		svc               *services.Seeder
 		invalidateLeecher func() error
+		seederBackend     backend.Backend
 	)
 	if *slice {
+		seederBackend = backend.NewMemoryBackend(make([]byte, *rawSize))
+
 		seeder := migration.NewSliceSeeder(
-			backend.NewMemoryBackend(make([]byte, *rawSize)),
+			seederBackend,
 
 			&migration.SeederOptions{
 				ChunkSize: *chunkSize,
@@ -86,7 +91,7 @@ func main() {
 			copy(
 				deviceSlice,
 				make([]byte,
-					int(math.Floor(
+					int64(math.Floor(
 						float64(*rawSize)*(float64(*invalidate)/float64(100)),
 					)),
 				),
@@ -99,8 +104,10 @@ func main() {
 
 		log.Println("Connected to slice")
 	} else {
+		seederBackend = backend.NewMemoryBackend(make([]byte, *rawSize))
+
 		seeder := migration.NewFileSeeder(
-			backend.NewMemoryBackend(make([]byte, *rawSize)),
+			seederBackend,
 
 			&migration.SeederOptions{
 				ChunkSize: *chunkSize,
@@ -130,12 +137,13 @@ func main() {
 		defer seeder.Close()
 
 		invalidateLeecher = func() error {
-			if _, err := io.CopyN(
-				deviceFile,
-				rand.Reader,
-				int64(math.Floor(
-					float64(*rawSize)*(float64(*invalidate)/float64(100)),
-				)),
+			if _, err := deviceFile.WriteAt(
+				make([]byte,
+					int64(math.Floor(
+						float64(*rawSize)*(float64(*invalidate)/float64(100)),
+					)),
+				),
+				0,
 			); err != nil {
 				return err
 			}
@@ -196,11 +204,17 @@ func main() {
 		}),
 	)
 
+	var (
+		leecherBackend backend.Backend
+		outputReader   io.Reader
+	)
 	if *slice {
+		leecherBackend = backend.NewMemoryBackend(make([]byte, size))
+
 		leecher := migration.NewSliceLeecher(
 			ctx,
 
-			backend.NewMemoryBackend(make([]byte, size)),
+			leecherBackend,
 			peer,
 
 			&migration.LeecherOptions{
@@ -286,11 +300,15 @@ func main() {
 		throughputMB := float64(size) / (1024 * 1024) / afterRead.Seconds()
 
 		fmt.Printf("Read throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
+
+		outputReader = bytes.NewReader(output)
 	} else {
+		leecherBackend = backend.NewMemoryBackend(make([]byte, size))
+
 		leecher := migration.NewFileLeecher(
 			ctx,
 
-			backend.NewMemoryBackend(make([]byte, size)),
+			leecherBackend,
 			peer,
 
 			&migration.LeecherOptions{
@@ -365,13 +383,13 @@ func main() {
 
 		fmt.Printf("Finalize: %v\n", afterFinalize)
 
-		output := backend.NewMemoryBackend(make([]byte, size))
+		output := make([]byte, size)
 
 		beforeRead := time.Now()
 
 		if _, err := io.CopyN(
 			io.NewOffsetWriter(
-				output,
+				backend.NewMemoryBackend(output),
 				0,
 			), deviceFile, size); err != nil {
 			panic(err)
@@ -382,5 +400,48 @@ func main() {
 		throughputMB := float64(size) / (1024 * 1024) / afterRead.Seconds()
 
 		fmt.Printf("Read throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
+
+		outputReader = bytes.NewReader(output)
+	}
+
+	if *check {
+		remoteHash := xxhash.New()
+		if _, err := io.Copy(
+			remoteHash,
+			io.NewSectionReader(
+				seederBackend,
+				0,
+				size,
+			),
+		); err != nil {
+			panic(err)
+		}
+
+		localHash := xxhash.New()
+		if _, err := io.Copy(
+			localHash,
+			io.NewSectionReader(
+				leecherBackend,
+				0,
+				size,
+			),
+		); err != nil {
+			panic(err)
+		}
+
+		outputHash := xxhash.New()
+		if _, err := io.CopyN(
+			outputHash,
+			outputReader,
+			size,
+		); err != nil {
+			panic(err)
+		}
+
+		if !(remoteHash.Sum64() == localHash.Sum64() && localHash.Sum64() == outputHash.Sum64()) {
+			panic("remote, local, and output hashes don't match")
+		}
+
+		fmt.Println("Read check: Passed")
 	}
 }
