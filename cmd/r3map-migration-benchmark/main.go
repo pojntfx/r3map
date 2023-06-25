@@ -3,10 +3,12 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -23,6 +25,7 @@ func main() {
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
+	invalidate := flag.Int("invalidate", 0, "Percentage of chunks (0-100) to invalidate in between Track() and Finalize()")
 
 	flag.Parse()
 
@@ -44,6 +47,9 @@ func main() {
 			}
 		}
 	}()
+
+	leecherOpened := make(chan struct{})
+	defer close(leecherOpened)
 
 	var svc *services.Seeder
 	if *slice {
@@ -70,11 +76,27 @@ func main() {
 			close(seederErrs)
 		}()
 
-		_, s, err := seeder.Open()
+		deviceSlice, s, err := seeder.Open()
 		if err != nil {
 			panic(err)
 		}
 		defer seeder.Close()
+
+		go func() {
+			_, ok := <-leecherOpened
+			if !ok {
+				return
+			}
+
+			copy(
+				deviceSlice,
+				make([]byte,
+					int(math.Floor(
+						float64(*rawSize)*(float64(*invalidate)/float64(100)),
+					)),
+				),
+			)
+		}()
 
 		svc = s
 
@@ -109,6 +131,25 @@ func main() {
 			panic(err)
 		}
 		defer seeder.Close()
+
+		go func() {
+			_, ok := <-leecherOpened
+			if !ok {
+				return
+			}
+
+			if _, err := io.CopyN(
+				deviceFile,
+				rand.Reader,
+				int64(math.Floor(
+					float64(*rawSize)*(float64(*invalidate)/float64(100)),
+				)),
+			); err != nil {
+				seederErrs <- err
+
+				return
+			}
+		}()
 
 		svc = s
 
@@ -224,6 +265,8 @@ func main() {
 
 		fmt.Printf("Open: %v\n", afterOpen)
 
+		leecherOpened <- struct{}{}
+
 		log.Println("Press <ENTER> to finalize")
 
 		bufio.NewScanner(os.Stdin).Scan()
@@ -309,6 +352,8 @@ func main() {
 		afterOpen := time.Since(beforeOpen)
 
 		fmt.Printf("Open: %v\n", afterOpen)
+
+		leecherOpened <- struct{}{}
 
 		log.Println("Press <ENTER> to finalize")
 
