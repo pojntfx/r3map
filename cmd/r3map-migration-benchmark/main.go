@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"io"
@@ -88,13 +89,18 @@ func main() {
 		defer seeder.Close()
 
 		invalidateLeecher = func() error {
-			copy(
-				deviceSlice,
-				make([]byte,
+			b := make([]byte,
 					int64(math.Floor(
 						float64(*rawSize)*(float64(*invalidate)/float64(100)),
 					)),
-				),
+			)
+			if _, err := rand.Read(b); err != nil {
+				return err
+			}
+
+			copy(
+				deviceSlice,
+				b,
 			)
 
 			return nil
@@ -137,12 +143,17 @@ func main() {
 		defer seeder.Close()
 
 		invalidateLeecher = func() error {
-			if _, err := deviceFile.WriteAt(
-				make([]byte,
+			b := make([]byte,
 					int64(math.Floor(
 						float64(*rawSize)*(float64(*invalidate)/float64(100)),
 					)),
-				),
+			)
+			if _, err := rand.Read(b); err != nil {
+				return err
+			}
+
+			if _, err := deviceFile.WriteAt(
+				b,
 				0,
 			); err != nil {
 				return err
@@ -405,9 +416,9 @@ func main() {
 	}
 
 	if *check {
-		remoteHash := xxhash.New()
+		seederHash := xxhash.New()
 		if _, err := io.Copy(
-			remoteHash,
+			seederHash,
 			io.NewSectionReader(
 				seederBackend,
 				0,
@@ -417,9 +428,9 @@ func main() {
 			panic(err)
 		}
 
-		localHash := xxhash.New()
+		leecherHash := xxhash.New()
 		if _, err := io.Copy(
-			localHash,
+			leecherHash,
 			io.NewSectionReader(
 				leecherBackend,
 				0,
@@ -438,7 +449,7 @@ func main() {
 			panic(err)
 		}
 
-		if !(remoteHash.Sum64() == localHash.Sum64() && localHash.Sum64() == outputHash.Sum64()) {
+		if !(seederHash.Sum64() == leecherHash.Sum64() && leecherHash.Sum64() == outputHash.Sum64()) {
 			panic("remote, local, and output hashes don't match")
 		}
 
