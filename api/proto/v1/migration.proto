@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package com.pojtinger.felicitas.r3map;
+
+option go_package = "github.com/pojntfx/r3map/pkg/api/proto/v1";
+
+import "google/protobuf/empty.proto";
+
+service Remote {
+  rpc ReadAt(ReadAtArgs) returns (ReadAtReply) {};
+  rpc WriteAt(WriteAtArgs) returns (WriteAtReply) {};
+  rpc Size(google.protobuf.Empty) returns (SizeReply) {};
+  rpc Sync(google.protobuf.Empty) returns (SyncReply) {};
+}
+
+message ReadAtArgs {
+  int64 Length = 1;
+  int64 Off = 2;
+}
+
+message ReadAtReply {
+  int64 N = 1;
+  bytes P = 2;
+  string Err = 3;
+}
+
+message WriteAtArgs {
+  bytes P = 1;
+  int64 Off = 2;
+}
+
+message WriteAtReply {
+  int64 N = 1;
+  string Err = 2;
+}
+
+message SizeReply {
+  int64 N = 1;
+  string Err = 2;
+}
+
+message SyncReply { string Err = 1; }
