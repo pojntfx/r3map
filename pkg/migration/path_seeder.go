@@ -172,6 +172,7 @@ func (s *PathSeeder) Open() (string, int64, *services.Seeder, error) {
 
 				return nil
 			},
+			s.options.ChunkSize,
 		),
 		nil
 }

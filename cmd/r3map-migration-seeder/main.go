@@ -9,9 +9,11 @@ import (
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
+	v1 "github.com/pojntfx/r3map/pkg/api/proto/v1"
 	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -20,6 +22,7 @@ func main() {
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
+	enableGRPC := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
 
 	flag.Parse()
 
@@ -99,28 +102,6 @@ func main() {
 		log.Println("Connected on", deviceFile.Name())
 	}
 
-	clients := 0
-	registry := rpc.NewRegistry(
-		svc,
-		struct{}{},
-
-		time.Second*10,
-		ctx,
-		&rpc.Options{
-			ResponseBufferLen: rpc.DefaultResponseBufferLen,
-			OnClientConnect: func(remoteID string) {
-				clients++
-
-				log.Printf("%v clients connected", clients)
-			},
-			OnClientDisconnect: func(remoteID string) {
-				clients--
-
-				log.Printf("%v clients connected", clients)
-			},
-		},
-	)
-
 	lis, err := net.Listen("tcp", *laddr)
 	if err != nil {
 		panic(err)
@@ -129,34 +110,70 @@ func main() {
 
 	log.Println("Listening on", lis.Addr())
 
-	go func() {
-		for {
-			conn, err := lis.Accept()
-			if err != nil {
-				if !utils.IsClosedErr(err) {
-					log.Println("could not accept connection, continuing:", err)
+	if *enableGRPC {
+		server := grpc.NewServer()
+
+		v1.RegisterSeederServer(server, services.NewSeederGrpc(svc))
+
+		go func() {
+			if err := server.Serve(lis); err != nil {
+				errs <- err
+
+				return
+			}
+		}()
+	} else {
+		clients := 0
+		registry := rpc.NewRegistry(
+			svc,
+			struct{}{},
+
+			time.Second*10,
+			ctx,
+			&rpc.Options{
+				ResponseBufferLen: rpc.DefaultResponseBufferLen,
+				OnClientConnect: func(remoteID string) {
+					clients++
+
+					log.Printf("%v clients connected", clients)
+				},
+				OnClientDisconnect: func(remoteID string) {
+					clients--
+
+					log.Printf("%v clients connected", clients)
+				},
+			},
+		)
+
+		go func() {
+			for {
+				conn, err := lis.Accept()
+				if err != nil {
+					if !utils.IsClosedErr(err) {
+						log.Println("could not accept connection, continuing:", err)
+					}
+
+					continue
 				}
 
-				continue
-			}
+				go func() {
+					defer func() {
+						_ = conn.Close()
 
-			go func() {
-				defer func() {
-					_ = conn.Close()
-
-					if err := recover(); err != nil {
-						if !utils.IsClosedErr(err.(error)) {
-							log.Printf("Client disconnected with error: %v", err)
+						if err := recover(); err != nil {
+							if !utils.IsClosedErr(err.(error)) {
+								log.Printf("Client disconnected with error: %v", err)
+							}
 						}
+					}()
+
+					if err := registry.Link(conn); err != nil {
+						panic(err)
 					}
 				}()
-
-				if err := registry.Link(conn); err != nil {
-					panic(err)
-				}
-			}()
-		}
-	}()
+			}
+		}()
+	}
 
 	for err := range errs {
 		if err != nil {

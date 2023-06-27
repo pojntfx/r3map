@@ -2,9 +2,14 @@ package services
 
 import (
 	"context"
+	"errors"
 	"log"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
+)
+
+var (
+	ErrMaxLengthExceeded = errors.New("max length exceeded")
 )
 
 type SeederRemote struct {
@@ -22,6 +27,8 @@ type Seeder struct {
 	track func() error
 	sync  func() ([]int64, error)
 	close func() error
+
+	maxLength int64
 }
 
 func NewSeeder(
@@ -30,8 +37,9 @@ func NewSeeder(
 	track func() error,
 	sync func() ([]int64, error),
 	close func() error,
+	maxLength int64,
 ) *Seeder {
-	return &Seeder{b, verbose, track, sync, close}
+	return &Seeder{b, verbose, track, sync, close, maxLength}
 }
 
 func (b *Seeder) ReadAt(context context.Context, length int, off int64) (r ReadAtResponse, err error) {
@@ -39,11 +47,19 @@ func (b *Seeder) ReadAt(context context.Context, length int, off int64) (r ReadA
 		log.Printf("ReadAt(len(p) = %v, off = %v)", length, off)
 	}
 
+	if int64(length) > b.maxLength {
+		return ReadAtResponse{}, ErrMaxLengthExceeded
+	}
+
 	r = ReadAtResponse{
 		P: make([]byte, length),
 	}
 
-	r.N, err = b.b.ReadAt(r.P, off)
+	n, err := b.b.ReadAt(r.P, off)
+	if err != nil {
+		return ReadAtResponse{}, err
+	}
+	r.N = n
 
 	return
 }
