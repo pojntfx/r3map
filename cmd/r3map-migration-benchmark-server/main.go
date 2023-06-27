@@ -22,7 +22,8 @@ func main() {
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
-	enableGRPC := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
+	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
+	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta")
 
 	flag.Parse()
 
@@ -102,21 +103,38 @@ func main() {
 		log.Println("Connected on", deviceFile.Name())
 	}
 
-	lis, err := net.Listen("tcp", *laddr)
-	if err != nil {
-		panic(err)
-	}
-	defer lis.Close()
-
-	log.Println("Listening on", lis.Addr())
-
-	if *enableGRPC {
+	if *enableGrpc {
 		server := grpc.NewServer()
 
 		v1.RegisterSeederServer(server, services.NewSeederGrpc(svc))
 
+		lis, err := net.Listen("tcp", *laddr)
+		if err != nil {
+			panic(err)
+		}
+		defer lis.Close()
+
+		log.Println("Listening on", lis.Addr())
+
 		go func() {
 			if err := server.Serve(lis); err != nil {
+				if !utils.IsClosedErr(err) {
+					errs <- err
+				}
+
+				return
+			}
+		}()
+	} else if *enableFrpc {
+		server, err := v1.NewServer(services.NewSeederFrpc(svc), nil, nil)
+		if err != nil {
+			panic(err)
+		}
+
+		log.Println("Listening on", *laddr)
+
+		go func() {
+			if err := server.Start(*laddr); err != nil {
 				if !utils.IsClosedErr(err) {
 					errs <- err
 				}
@@ -146,6 +164,14 @@ func main() {
 				},
 			},
 		)
+
+		lis, err := net.Listen("tcp", *laddr)
+		if err != nil {
+			panic(err)
+		}
+		defer lis.Close()
+
+		log.Println("Listening on", lis.Addr())
 
 		go func() {
 			for {

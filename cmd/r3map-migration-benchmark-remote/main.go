@@ -33,7 +33,7 @@ func main() {
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
-	enableGRPC := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
+	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
 
 	flag.Parse()
 
@@ -41,7 +41,7 @@ func main() {
 	defer cancel()
 
 	var peer *services.SeederRemote
-	if *enableGRPC {
+	if *enableGrpc {
 		conn, err := grpc.Dial(*raddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			panic(err)

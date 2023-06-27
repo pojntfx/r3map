@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package com.pojtinger.felicitas.r3map;
+package com.pojtinger.felicitas.r3map.v1;
 
 option go_package = "github.com/pojntfx/r3map/pkg/api/proto/v1";
 
