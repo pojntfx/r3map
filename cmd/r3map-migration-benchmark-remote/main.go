@@ -34,6 +34,7 @@ func main() {
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
+	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta")
 
 	flag.Parse()
 
@@ -92,6 +93,65 @@ func main() {
 			},
 			Close: func(ctx context.Context) error {
 				if _, err := client.Close(ctx, &v1.CloseArgs{}); err != nil {
+					return err
+				}
+
+				return nil
+			},
+		}
+	} else if *enableFrpc {
+		client, err := v1.NewClient(nil, nil)
+		if err != nil {
+			panic(err)
+		}
+
+		if err := client.Connect(*raddr); err != nil {
+			panic(err)
+		}
+		defer client.Close()
+
+		log.Println("Connected to", *raddr)
+
+		peer = &services.SeederRemote{
+			ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
+				res, err := client.Seeder.ReadAt(ctx, &v1.ComPojtingerFelicitasR3MapV1ReadAtArgs{
+					Length: int32(length),
+					Off:    off,
+				})
+				if err != nil {
+					return services.ReadAtResponse{}, err
+				}
+
+				return services.ReadAtResponse{
+					N: int(res.N),
+					P: res.P,
+				}, err
+			},
+			Size: func(ctx context.Context) (int64, error) {
+				res, err := client.Seeder.Size(ctx, &v1.ComPojtingerFelicitasR3MapV1SizeArgs{})
+				if err != nil {
+					return -1, err
+				}
+
+				return res.N, nil
+			},
+			Track: func(ctx context.Context) error {
+				if _, err := client.Seeder.Track(ctx, &v1.ComPojtingerFelicitasR3MapV1TrackArgs{}); err != nil {
+					return err
+				}
+
+				return nil
+			},
+			Sync: func(ctx context.Context) ([]int64, error) {
+				res, err := client.Seeder.Sync(ctx, &v1.ComPojtingerFelicitasR3MapV1SyncArgs{})
+				if err != nil {
+					return []int64{}, err
+				}
+
+				return res.DirtyOffsets, nil
+			},
+			Close: func(ctx context.Context) error {
+				if _, err := client.Seeder.Close(ctx, &v1.ComPojtingerFelicitasR3MapV1CloseArgs{}); err != nil {
 					return err
 				}
 
