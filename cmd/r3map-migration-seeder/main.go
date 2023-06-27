@@ -117,7 +117,9 @@ func main() {
 
 		go func() {
 			if err := server.Serve(lis); err != nil {
-				errs <- err
+				if !utils.IsClosedErr(err) {
+					errs <- err
+				}
 
 				return
 			}

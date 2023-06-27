@@ -14,10 +14,13 @@ import (
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
+	v1 "github.com/pojntfx/r3map/pkg/api/proto/v1"
 	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
 	"github.com/schollz/progressbar/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -30,54 +33,114 @@ func main() {
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
+	enableGRPC := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
 
 	flag.Parse()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	ready := make(chan struct{})
-	registry := rpc.NewRegistry(
-		&struct{}{},
-		services.SeederRemote{},
-
-		time.Second*10,
-		ctx,
-		&rpc.Options{
-			ResponseBufferLen: rpc.DefaultResponseBufferLen,
-			OnClientConnect: func(remoteID string) {
-				ready <- struct{}{}
-			},
-		},
-	)
-
-	conn, err := net.Dial("tcp", *raddr)
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-
-	go func() {
-		if err := registry.Link(conn); err != nil {
-			if !utils.IsClosedErr(err) {
-				panic(err)
-			}
-		}
-	}()
-
-	<-ready
-
-	log.Println("Connected to", conn.RemoteAddr())
-
 	var peer *services.SeederRemote
-	for _, candidate := range registry.Peers() {
-		peer = &candidate
+	if *enableGRPC {
+		conn, err := grpc.Dial(*raddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			panic(err)
+		}
+		defer conn.Close()
 
-		break
-	}
+		log.Println("Connected to", *raddr)
 
-	if peer == nil {
-		panic(errNoPeerFound)
+		client := v1.NewSeederClient(conn)
+
+		peer = &services.SeederRemote{
+			ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
+				res, err := client.ReadAt(ctx, &v1.ReadAtArgs{
+					Length: int32(length),
+					Off:    off,
+				})
+				if err != nil {
+					return services.ReadAtResponse{}, err
+				}
+
+				return services.ReadAtResponse{
+					N: int(res.GetN()),
+					P: res.GetP(),
+				}, err
+			},
+			Size: func(ctx context.Context) (int64, error) {
+				res, err := client.Size(ctx, &v1.SizeArgs{})
+				if err != nil {
+					return -1, err
+				}
+
+				return res.GetN(), nil
+			},
+			Track: func(ctx context.Context) error {
+				if _, err := client.Track(ctx, &v1.TrackArgs{}); err != nil {
+					return err
+				}
+
+				return nil
+			},
+			Sync: func(ctx context.Context) ([]int64, error) {
+				res, err := client.Sync(ctx, &v1.SyncArgs{})
+				if err != nil {
+					return []int64{}, err
+				}
+
+				return res.GetDirtyOffsets(), nil
+			},
+			Close: func(ctx context.Context) error {
+				if _, err := client.Close(ctx, &v1.CloseArgs{}); err != nil {
+					return err
+				}
+
+				return nil
+			},
+		}
+	} else {
+		conn, err := net.Dial("tcp", *raddr)
+		if err != nil {
+			panic(err)
+		}
+		defer conn.Close()
+
+		ready := make(chan struct{})
+		registry := rpc.NewRegistry(
+			&struct{}{},
+			services.SeederRemote{},
+
+			time.Second*10,
+			ctx,
+			&rpc.Options{
+				ResponseBufferLen: rpc.DefaultResponseBufferLen,
+				OnClientConnect: func(remoteID string) {
+					ready <- struct{}{}
+				},
+			},
+		)
+
+		go func() {
+			if err := registry.Link(conn); err != nil {
+				if !utils.IsClosedErr(err) {
+					panic(err)
+				}
+			}
+		}()
+
+		<-ready
+
+		log.Println("Connected to", conn.RemoteAddr())
+
+		for _, candidate := range registry.Peers() {
+			peer = &candidate
+
+			break
+		}
+
+		if peer == nil {
+			panic(errNoPeerFound)
+		}
 	}
 
 	size, err := peer.Size(ctx)

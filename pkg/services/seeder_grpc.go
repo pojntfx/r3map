@@ -19,14 +19,14 @@ func NewSeederGrpc(svc *Seeder) *SeederGrpc {
 }
 
 func (s *SeederGrpc) ReadAt(ctx context.Context, args *v1.ReadAtArgs) (*v1.ReadAtReply, error) {
-	r, err := s.svc.ReadAt(ctx, int(args.GetLength()), args.GetOff())
+	res, err := s.svc.ReadAt(ctx, int(args.GetLength()), args.GetOff())
 	if err != nil {
 		return nil, err
 	}
 
 	return &v1.ReadAtReply{
-		N: int32(r.N),
-		P: r.P,
+		N: int32(res.N),
+		P: res.P,
 	}, nil
 }
 
@@ -42,8 +42,7 @@ func (s *SeederGrpc) Size(ctx context.Context, args *v1.SizeArgs) (*v1.SizeReply
 }
 
 func (s *SeederGrpc) Track(ctx context.Context, args *v1.TrackArgs) (*v1.TrackReply, error) {
-	err := s.svc.Track(ctx)
-	if err != nil {
+	if err := s.svc.Track(ctx); err != nil {
 		return nil, err
 	}
 
