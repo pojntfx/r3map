@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package com.pojtinger.felicitas.r3map;
+
+option go_package = "github.com/pojntfx/r3map/pkg/api/proto/v1";
+
+service Seeder {
+  rpc ReadAt(ReadAtArgs) returns (ReadAtReply) {};
+  rpc Size(SizeArgs) returns (SizeReply) {};
+  rpc Track(TrackArgs) returns (TrackReply) {};
+  rpc Sync(SyncArgs) returns (SyncReply) {};
+  rpc Close(CloseArgs) returns (CloseReply) {};
+}
+
+message ReadAtArgs {
+  int32 Length = 1;
+  int64 Off = 2;
+}
+
+message ReadAtReply {
+  int32 N = 1;
+  bytes P = 2;
+}
+
+message SizeArgs {}
+
+message SizeReply { int64 N = 1; }
+
+message TrackArgs {}
+
+message TrackReply {}
+
+message SyncArgs {}
+
+message SyncReply { repeated int64 DirtyOffsets = 1; }
+
+message CloseArgs {}
+
+message CloseReply {}
