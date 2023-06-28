@@ -16,6 +16,7 @@ require (
 	github.com/schollz/progressbar/v3 v3.13.1
 	google.golang.org/grpc v1.56.1
 	google.golang.org/protobuf v1.31.0
+	storj.io/drpc v0.0.33
 )
 
 require (
@@ -35,9 +36,11 @@ require (
 	github.com/pilebones/go-udev v0.9.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/stretchr/testify v1.8.3 // indirect
+	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/teivah/broadcast v0.1.0 // indirect
+	github.com/zeebo/errs v1.3.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/goleak v1.2.1 // indirect
 	golang.org/x/crypto v0.10.0 // indirect
 	golang.org/x/net v0.11.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect

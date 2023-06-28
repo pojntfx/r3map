@@ -14,13 +14,15 @@ import (
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
-	v1 "github.com/pojntfx/r3map/pkg/api/proto/v1"
+	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/v1"
+	v1proto "github.com/pojntfx/r3map/pkg/api/proto/v1"
 	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
 	"github.com/schollz/progressbar/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"storj.io/drpc/drpcconn"
 )
 
 var (
@@ -34,6 +36,7 @@ func main() {
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
+	enableDrpc := flag.Bool("drpc", false, "Whether to use DRPC instead of Dudirekta")
 	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta")
 
 	flag.Parse()
@@ -51,11 +54,11 @@ func main() {
 
 		log.Println("Connected to", *raddr)
 
-		client := v1.NewSeederClient(conn)
+		client := v1proto.NewSeederClient(conn)
 
 		peer = &services.SeederRemote{
 			ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
-				res, err := client.ReadAt(ctx, &v1.ReadAtArgs{
+				res, err := client.ReadAt(ctx, &v1proto.ReadAtArgs{
 					Length: int32(length),
 					Off:    off,
 				})
@@ -69,7 +72,7 @@ func main() {
 				}, err
 			},
 			Size: func(ctx context.Context) (int64, error) {
-				res, err := client.Size(ctx, &v1.SizeArgs{})
+				res, err := client.Size(ctx, &v1proto.SizeArgs{})
 				if err != nil {
 					return -1, err
 				}
@@ -77,14 +80,14 @@ func main() {
 				return res.GetN(), nil
 			},
 			Track: func(ctx context.Context) error {
-				if _, err := client.Track(ctx, &v1.TrackArgs{}); err != nil {
+				if _, err := client.Track(ctx, &v1proto.TrackArgs{}); err != nil {
 					return err
 				}
 
 				return nil
 			},
 			Sync: func(ctx context.Context) ([]int64, error) {
-				res, err := client.Sync(ctx, &v1.SyncArgs{})
+				res, err := client.Sync(ctx, &v1proto.SyncArgs{})
 				if err != nil {
 					return []int64{}, err
 				}
@@ -92,7 +95,67 @@ func main() {
 				return res.GetDirtyOffsets(), nil
 			},
 			Close: func(ctx context.Context) error {
-				if _, err := client.Close(ctx, &v1.CloseArgs{}); err != nil {
+				if _, err := client.Close(ctx, &v1proto.CloseArgs{}); err != nil {
+					return err
+				}
+
+				return nil
+			},
+		}
+	} else if *enableDrpc {
+		rawConn, err := net.Dial("tcp", *raddr)
+		if err != nil {
+			panic(err)
+		}
+		defer rawConn.Close()
+
+		log.Println("Connected to", rawConn.RemoteAddr())
+
+		conn := drpcconn.New(rawConn)
+		defer conn.Close()
+
+		client := v1proto.NewDRPCSeederClient(conn)
+
+		peer = &services.SeederRemote{
+			ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
+				res, err := client.ReadAt(ctx, &v1proto.ReadAtArgs{
+					Length: int32(length),
+					Off:    off,
+				})
+				if err != nil {
+					return services.ReadAtResponse{}, err
+				}
+
+				return services.ReadAtResponse{
+					N: int(res.GetN()),
+					P: res.GetP(),
+				}, err
+			},
+			Size: func(ctx context.Context) (int64, error) {
+				res, err := client.Size(ctx, &v1proto.SizeArgs{})
+				if err != nil {
+					return -1, err
+				}
+
+				return res.GetN(), nil
+			},
+			Track: func(ctx context.Context) error {
+				if _, err := client.Track(ctx, &v1proto.TrackArgs{}); err != nil {
+					return err
+				}
+
+				return nil
+			},
+			Sync: func(ctx context.Context) ([]int64, error) {
+				res, err := client.Sync(ctx, &v1proto.SyncArgs{})
+				if err != nil {
+					return []int64{}, err
+				}
+
+				return res.GetDirtyOffsets(), nil
+			},
+			Close: func(ctx context.Context) error {
+				if _, err := client.Close(ctx, &v1proto.CloseArgs{}); err != nil {
 					return err
 				}
 
@@ -100,7 +163,7 @@ func main() {
 			},
 		}
 	} else if *enableFrpc {
-		client, err := v1.NewClient(nil, nil)
+		client, err := v1frpc.NewClient(nil, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -114,7 +177,7 @@ func main() {
 
 		peer = &services.SeederRemote{
 			ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
-				res, err := client.Seeder.ReadAt(ctx, &v1.ComPojtingerFelicitasR3MapV1ReadAtArgs{
+				res, err := client.Seeder.ReadAt(ctx, &v1frpc.ComPojtingerFelicitasR3MapV1ReadAtArgs{
 					Length: int32(length),
 					Off:    off,
 				})
@@ -128,7 +191,7 @@ func main() {
 				}, err
 			},
 			Size: func(ctx context.Context) (int64, error) {
-				res, err := client.Seeder.Size(ctx, &v1.ComPojtingerFelicitasR3MapV1SizeArgs{})
+				res, err := client.Seeder.Size(ctx, &v1frpc.ComPojtingerFelicitasR3MapV1SizeArgs{})
 				if err != nil {
 					return -1, err
 				}
@@ -136,14 +199,14 @@ func main() {
 				return res.N, nil
 			},
 			Track: func(ctx context.Context) error {
-				if _, err := client.Seeder.Track(ctx, &v1.ComPojtingerFelicitasR3MapV1TrackArgs{}); err != nil {
+				if _, err := client.Seeder.Track(ctx, &v1frpc.ComPojtingerFelicitasR3MapV1TrackArgs{}); err != nil {
 					return err
 				}
 
 				return nil
 			},
 			Sync: func(ctx context.Context) ([]int64, error) {
-				res, err := client.Seeder.Sync(ctx, &v1.ComPojtingerFelicitasR3MapV1SyncArgs{})
+				res, err := client.Seeder.Sync(ctx, &v1frpc.ComPojtingerFelicitasR3MapV1SyncArgs{})
 				if err != nil {
 					return []int64{}, err
 				}
@@ -151,7 +214,7 @@ func main() {
 				return res.DirtyOffsets, nil
 			},
 			Close: func(ctx context.Context) error {
-				if _, err := client.Seeder.Close(ctx, &v1.ComPojtingerFelicitasR3MapV1CloseArgs{}); err != nil {
+				if _, err := client.Seeder.Close(ctx, &v1frpc.ComPojtingerFelicitasR3MapV1CloseArgs{}); err != nil {
 					return err
 				}
 

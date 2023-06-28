@@ -9,11 +9,14 @@ import (
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
-	v1 "github.com/pojntfx/r3map/pkg/api/proto/v1"
+	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/v1"
+	v1proto "github.com/pojntfx/r3map/pkg/api/proto/v1"
 	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
 	"google.golang.org/grpc"
+	"storj.io/drpc/drpcmux"
+	"storj.io/drpc/drpcserver"
 )
 
 func main() {
@@ -23,6 +26,7 @@ func main() {
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
+	enableDrpc := flag.Bool("drpc", false, "Whether to use DRPC instead of Dudirekta")
 	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta")
 
 	flag.Parse()
@@ -106,7 +110,7 @@ func main() {
 	if *enableGrpc {
 		server := grpc.NewServer()
 
-		v1.RegisterSeederServer(server, services.NewSeederGrpc(svc))
+		v1proto.RegisterSeederServer(server, services.NewSeederGrpc(svc))
 
 		lis, err := net.Listen("tcp", *laddr)
 		if err != nil {
@@ -126,7 +130,7 @@ func main() {
 			}
 		}()
 	} else if *enableFrpc {
-		server, err := v1.NewServer(services.NewSeederFrpc(svc), nil, nil)
+		server, err := v1frpc.NewServer(services.NewSeederFrpc(svc), nil, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -135,6 +139,30 @@ func main() {
 
 		go func() {
 			if err := server.Start(*laddr); err != nil {
+				if !utils.IsClosedErr(err) {
+					errs <- err
+				}
+
+				return
+			}
+		}()
+	} else if *enableDrpc {
+		mux := drpcmux.New()
+
+		v1proto.DRPCRegisterSeeder(mux, services.NewSeederDrpc(svc))
+
+		lis, err := net.Listen("tcp", *laddr)
+		if err != nil {
+			panic(err)
+		}
+		defer lis.Close()
+
+		log.Println("Listening on", lis.Addr())
+
+		server := drpcserver.New(mux)
+
+		go func() {
+			if err := server.Serve(ctx, lis); err != nil {
 				if !utils.IsClosedErr(err) {
 					errs <- err
 				}

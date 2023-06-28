@@ -3,10 +3,10 @@ package services
 import (
 	"context"
 
-	v1 "github.com/pojntfx/r3map/pkg/api/proto/v1"
+	v1 "github.com/pojntfx/r3map/pkg/api/frpc/v1"
 )
 
-//go:generate sh -c "mkdir -p ../api/proto/v1 && protoc --go_out=../api/proto/v1 --go_opt=paths=source_relative --go-frpc_out=../api/proto/v1 --go-frpc_opt=paths=source_relative --proto_path=../../api/proto/v1 ../../api/proto/v1/*.proto"
+//go:generate sh -c "mkdir -p ../api/frpc/v1 && protoc --go-frpc_out=../api/frpc/v1 --go-frpc_opt=paths=source_relative --proto_path=../../api/proto/v1 ../../api/proto/v1/*.proto"
 
 type SeederFrpc struct {
 	svc *Seeder
