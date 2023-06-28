@@ -89,6 +89,8 @@ func (m *FileMount) onBeforeSync() error {
 func (m *FileMount) onBeforeClose() error {
 	if m.deviceFile != nil {
 		_ = m.deviceFile.Close()
+
+		m.deviceFile = nil
 	}
 
 	return nil

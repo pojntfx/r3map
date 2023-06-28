@@ -70,19 +70,21 @@ func (s *FileSeeder) Open() (*os.File, *services.Seeder, error) {
 	return s.deviceFile, svc, nil
 }
 
-func (s *FileSeeder) onBeforeClose() error {
-	if s.deviceFile != nil {
-		_ = s.deviceFile.Close()
-	}
-
-	return nil
-}
-
 func (s *FileSeeder) onBeforeSync() error {
 	if s.deviceFile != nil {
 		if err := s.deviceFile.Sync(); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (s *FileSeeder) onBeforeClose() error {
+	if s.deviceFile != nil {
+		_ = s.deviceFile.Close()
+
+		s.deviceFile = nil
 	}
 
 	return nil
