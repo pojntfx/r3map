@@ -1,10 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"crypto/rand"
 	"flag"
+	"fmt"
 	"log"
+	"math"
 	"net"
+	"os"
 	"time"
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
@@ -25,6 +30,7 @@ func main() {
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
 	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta")
+	invalidate := flag.Int("invalidate", 0, "Percentage of chunks (0-100) to invalidate in between Track() and Finalize()")
 
 	flag.Parse()
 
@@ -32,8 +38,9 @@ func main() {
 	defer cancel()
 
 	var (
-		svc  *services.Seeder
-		errs = make(chan error)
+		svc               *services.Seeder
+		invalidateLeecher func() error
+		errs              = make(chan error)
 	)
 	if *slice {
 		seeder := migration.NewSliceSeeder(
@@ -59,11 +66,29 @@ func main() {
 			close(errs)
 		}()
 
-		_, s, err := seeder.Open()
+		deviceSlice, s, err := seeder.Open()
 		if err != nil {
 			panic(err)
 		}
 		defer seeder.Close()
+
+		invalidateLeecher = func() error {
+			b := make([]byte,
+				int64(math.Floor(
+					float64(*size)*(float64(*invalidate)/float64(100)),
+				)),
+			)
+			if _, err := rand.Read(b); err != nil {
+				return err
+			}
+
+			copy(
+				deviceSlice,
+				b,
+			)
+
+			return nil
+		}
 
 		svc = s
 
@@ -93,11 +118,31 @@ func main() {
 			close(errs)
 		}()
 
+		defer seeder.Close()
 		deviceFile, s, err := seeder.Open()
 		if err != nil {
 			panic(err)
 		}
-		defer seeder.Close()
+
+		invalidateLeecher = func() error {
+			b := make([]byte,
+				int64(math.Floor(
+					float64(*size)*(float64(*invalidate)/float64(100)),
+				)),
+			)
+			if _, err := rand.Read(b); err != nil {
+				return err
+			}
+
+			if _, err := deviceFile.WriteAt(
+				b,
+				0,
+			); err != nil {
+				return err
+			}
+
+			return nil
+		}
 
 		svc = s
 
@@ -203,6 +248,24 @@ func main() {
 			}
 		}()
 	}
+
+	go func() {
+		log.Println("Press <ENTER> to invalidate")
+
+		bufio.NewScanner(os.Stdin).Scan()
+
+		beforeInvalidate := time.Now()
+
+		if err := invalidateLeecher(); err != nil {
+			errs <- err
+
+			return
+		}
+
+		afterInvalidate := time.Since(beforeInvalidate)
+
+		fmt.Printf("Invalidate: %v\n", afterInvalidate)
+	}()
 
 	for err := range errs {
 		if err != nil {
