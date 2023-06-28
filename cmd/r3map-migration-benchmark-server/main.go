@@ -66,11 +66,11 @@ func main() {
 			close(errs)
 		}()
 
+		defer seeder.Close()
 		deviceSlice, s, err := seeder.Open()
 		if err != nil {
 			panic(err)
 		}
-		defer seeder.Close()
 
 		invalidateLeecher = func() error {
 			b := make([]byte,
