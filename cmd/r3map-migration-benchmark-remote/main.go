@@ -22,7 +22,6 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"storj.io/drpc/drpcconn"
 )
 
 var (
@@ -36,7 +35,6 @@ func main() {
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
-	enableDrpc := flag.Bool("drpc", false, "Whether to use DRPC instead of Dudirekta")
 	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta")
 
 	flag.Parse()
@@ -55,66 +53,6 @@ func main() {
 		log.Println("Connected to", *raddr)
 
 		client := v1proto.NewSeederClient(conn)
-
-		peer = &services.SeederRemote{
-			ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
-				res, err := client.ReadAt(ctx, &v1proto.ReadAtArgs{
-					Length: int32(length),
-					Off:    off,
-				})
-				if err != nil {
-					return services.ReadAtResponse{}, err
-				}
-
-				return services.ReadAtResponse{
-					N: int(res.GetN()),
-					P: res.GetP(),
-				}, err
-			},
-			Size: func(ctx context.Context) (int64, error) {
-				res, err := client.Size(ctx, &v1proto.SizeArgs{})
-				if err != nil {
-					return -1, err
-				}
-
-				return res.GetN(), nil
-			},
-			Track: func(ctx context.Context) error {
-				if _, err := client.Track(ctx, &v1proto.TrackArgs{}); err != nil {
-					return err
-				}
-
-				return nil
-			},
-			Sync: func(ctx context.Context) ([]int64, error) {
-				res, err := client.Sync(ctx, &v1proto.SyncArgs{})
-				if err != nil {
-					return []int64{}, err
-				}
-
-				return res.GetDirtyOffsets(), nil
-			},
-			Close: func(ctx context.Context) error {
-				if _, err := client.Close(ctx, &v1proto.CloseArgs{}); err != nil {
-					return err
-				}
-
-				return nil
-			},
-		}
-	} else if *enableDrpc {
-		rawConn, err := net.Dial("tcp", *raddr)
-		if err != nil {
-			panic(err)
-		}
-		defer rawConn.Close()
-
-		log.Println("Connected to", rawConn.RemoteAddr())
-
-		conn := drpcconn.New(rawConn)
-		defer conn.Close()
-
-		client := v1proto.NewDRPCSeederClient(conn)
 
 		peer = &services.SeederRemote{
 			ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {

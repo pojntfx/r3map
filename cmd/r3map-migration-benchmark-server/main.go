@@ -15,8 +15,6 @@ import (
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
 	"google.golang.org/grpc"
-	"storj.io/drpc/drpcmux"
-	"storj.io/drpc/drpcserver"
 )
 
 func main() {
@@ -26,7 +24,6 @@ func main() {
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
-	enableDrpc := flag.Bool("drpc", false, "Whether to use DRPC instead of Dudirekta")
 	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta")
 
 	flag.Parse()
@@ -139,30 +136,6 @@ func main() {
 
 		go func() {
 			if err := server.Start(*laddr); err != nil {
-				if !utils.IsClosedErr(err) {
-					errs <- err
-				}
-
-				return
-			}
-		}()
-	} else if *enableDrpc {
-		mux := drpcmux.New()
-
-		v1proto.DRPCRegisterSeeder(mux, services.NewSeederDrpc(svc))
-
-		lis, err := net.Listen("tcp", *laddr)
-		if err != nil {
-			panic(err)
-		}
-		defer lis.Close()
-
-		log.Println("Listening on", lis.Addr())
-
-		server := drpcserver.New(mux)
-
-		go func() {
-			if err := server.Serve(ctx, lis); err != nil {
 				if !utils.IsClosedErr(err) {
 					errs <- err
 				}
