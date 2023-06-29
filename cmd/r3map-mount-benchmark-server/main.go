@@ -19,6 +19,7 @@ func main() {
 
 	memory := flag.Bool("memory", false, "Whether to use memory instead of file-based backend")
 	size := flag.Int64("size", 4096*8192, "Size of the memory region to expose (ignored if file-based backend is used)")
+	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 
 	file := flag.String("file", "disk.img", "Path to file to expose (ignored if memory-based backend is used)")
 
@@ -45,7 +46,7 @@ func main() {
 	clients := 0
 
 	registry := rpc.NewRegistry(
-		services.NewBackend(b, *verbose),
+		services.NewBackend(b, *verbose, *chunkSize),
 		struct{}{},
 
 		time.Second*10,

@@ -22,10 +22,12 @@ type ReadAtResponse struct {
 type Backend struct {
 	b       backend.Backend
 	verbose bool
+
+	maxLength int64
 }
 
-func NewBackend(b backend.Backend, verbose bool) *Backend {
-	return &Backend{b, verbose}
+func NewBackend(b backend.Backend, verbose bool, maxLength int64) *Backend {
+	return &Backend{b, verbose, maxLength}
 }
 
 func (b *Backend) ReadAt(context context.Context, length int, off int64) (r ReadAtResponse, err error) {
@@ -33,11 +35,19 @@ func (b *Backend) ReadAt(context context.Context, length int, off int64) (r Read
 		log.Printf("ReadAt(len(p) = %v, off = %v)", length, off)
 	}
 
+	if int64(length) > b.maxLength {
+		return ReadAtResponse{}, ErrMaxLengthExceeded
+	}
+
 	r = ReadAtResponse{
 		P: make([]byte, length),
 	}
 
-	r.N, err = b.b.ReadAt(r.P, off)
+	n, err := b.b.ReadAt(r.P, off)
+	if err != nil {
+		return ReadAtResponse{}, err
+	}
+	r.N = n
 
 	return
 }
