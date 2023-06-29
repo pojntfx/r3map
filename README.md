@@ -1,6 +1,8 @@
 # r3map
 
-Re**m**ote **mm**ap: Efficient memory region synchronization between hosts.
+![Logo](./docs/logo-readme.png)
+
+Re**m**ote **mm**ap: Efficient remote memory region mounting and migration.
 
 ## Overview
 
