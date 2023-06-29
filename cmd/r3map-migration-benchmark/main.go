@@ -107,19 +107,15 @@ func main() {
 			}
 
 			invalidateLeecher = func() error {
-				b := make([]byte,
+				if _, err := io.CopyN(
+					utils.NewSliceWriter(deviceSlice),
+					rand.Reader,
 					int64(math.Floor(
 						float64(*rawSize)*(float64(*invalidate)/float64(100)),
 					)),
-				)
-				if _, err := rand.Read(b); err != nil {
+				); err != nil {
 					return err
 				}
-
-				copy(
-					deviceSlice,
-					b,
-				)
 
 				return nil
 			}
@@ -161,18 +157,12 @@ func main() {
 			}
 
 			invalidateLeecher = func() error {
-				b := make([]byte,
+				if _, err := io.CopyN(
+					deviceFile,
+					rand.Reader,
 					int64(math.Floor(
 						float64(*rawSize)*(float64(*invalidate)/float64(100)),
 					)),
-				)
-				if _, err := rand.Read(b); err != nil {
-					return err
-				}
-
-				if _, err := deviceFile.WriteAt(
-					b,
-					0,
 				); err != nil {
 					return err
 				}
