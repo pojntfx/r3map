@@ -19,6 +19,7 @@ import (
 	"github.com/minio/minio-go"
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
+	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/mount/v1"
 	v1proto "github.com/pojntfx/r3map/pkg/api/proto/mount/v1"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/chunks"
@@ -257,6 +258,62 @@ func main() {
 				},
 				Sync: func(context context.Context) error {
 					if _, err := client.Sync(ctx, &v1proto.SyncArgs{}); err != nil {
+						return err
+					}
+
+					return nil
+				},
+			}
+
+			*config.backendInstance = lbackend.NewRPCBackend(ctx, peer, false)
+
+		case backendTypeFrpc:
+			client, err := v1frpc.NewClient(nil, nil)
+			if err != nil {
+				panic(err)
+			}
+
+			if err := client.Connect(config.backendLocation); err != nil {
+				panic(err)
+			}
+			defer client.Close()
+
+			peer := &services.BackendRemote{
+				ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
+					res, err := client.Backend.ReadAt(ctx, &v1frpc.ComPojtingerFelicitasR3MapMountV1ReadAtArgs{
+						Length: int32(length),
+						Off:    off,
+					})
+					if err != nil {
+						return services.ReadAtResponse{}, err
+					}
+
+					return services.ReadAtResponse{
+						N: int(res.N),
+						P: res.P,
+					}, err
+				},
+				WriteAt: func(context context.Context, p []byte, off int64) (n int, err error) {
+					res, err := client.Backend.WriteAt(ctx, &v1frpc.ComPojtingerFelicitasR3MapMountV1WriteAtArgs{
+						Off: off,
+						P:   p,
+					})
+					if err != nil {
+						return 0, err
+					}
+
+					return int(res.Length), nil
+				},
+				Size: func(context context.Context) (int64, error) {
+					res, err := client.Backend.Size(ctx, &v1frpc.ComPojtingerFelicitasR3MapMountV1SizeArgs{})
+					if err != nil {
+						return 0, err
+					}
+
+					return res.Size, nil
+				},
+				Sync: func(context context.Context) error {
+					if _, err := client.Backend.Sync(ctx, &v1frpc.ComPojtingerFelicitasR3MapMountV1SyncArgs{}); err != nil {
 						return err
 					}
 
