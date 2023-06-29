@@ -19,11 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Seeder_ReadAt_FullMethodName = "/com.pojtinger.felicitas.r3map.v1.Seeder/ReadAt"
-	Seeder_Size_FullMethodName   = "/com.pojtinger.felicitas.r3map.v1.Seeder/Size"
-	Seeder_Track_FullMethodName  = "/com.pojtinger.felicitas.r3map.v1.Seeder/Track"
-	Seeder_Sync_FullMethodName   = "/com.pojtinger.felicitas.r3map.v1.Seeder/Sync"
-	Seeder_Close_FullMethodName  = "/com.pojtinger.felicitas.r3map.v1.Seeder/Close"
+	Seeder_ReadAt_FullMethodName = "/com.pojtinger.felicitas.r3map.migration.v1.Seeder/ReadAt"
+	Seeder_Size_FullMethodName   = "/com.pojtinger.felicitas.r3map.migration.v1.Seeder/Size"
+	Seeder_Track_FullMethodName  = "/com.pojtinger.felicitas.r3map.migration.v1.Seeder/Track"
+	Seeder_Sync_FullMethodName   = "/com.pojtinger.felicitas.r3map.migration.v1.Seeder/Sync"
+	Seeder_Close_FullMethodName  = "/com.pojtinger.felicitas.r3map.migration.v1.Seeder/Close"
 )
 
 // SeederClient is the client API for Seeder service.
@@ -228,7 +228,7 @@ func _Seeder_Close_Handler(srv interface{}, ctx context.Context, dec func(interf
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var Seeder_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "com.pojtinger.felicitas.r3map.v1.Seeder",
+	ServiceName: "com.pojtinger.felicitas.r3map.migration.v1.Seeder",
 	HandlerType: (*SeederServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

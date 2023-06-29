@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package com.pojtinger.felicitas.r3map.mount.v1;
+
+option go_package = "github.com/pojntfx/r3map/pkg/api/proto/mount/v1";
+
+service Backend {
+  rpc ReadAt(ReadAtArgs) returns (ReadAtReply) {};
+  rpc WriteAt(WriteAtArgs) returns (WriteAtReply) {};
+  rpc Size(SizeArgs) returns (SizeReply) {};
+  rpc Sync(SyncArgs) returns (SyncReply) {};
+}
+
+message ReadAtArgs {
+  int32 Length = 1;
+  int64 Off = 2;
+}
+
+message ReadAtReply {
+  int32 N = 1;
+  bytes P = 2;
+}
+
+message WriteAtArgs {
+  int64 Off = 1;
+  bytes P = 2;
+}
+
+message WriteAtReply { int32 Length = 1; }
+
+message SizeArgs {}
+
+message SizeReply { int64 Size = 1; }
+
+message SyncArgs {}
+
+message SyncReply {}

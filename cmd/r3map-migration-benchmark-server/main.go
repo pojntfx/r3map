@@ -15,8 +15,8 @@ import (
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
-	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/v1"
-	v1proto "github.com/pojntfx/r3map/pkg/api/proto/v1"
+	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/migration/v1"
+	v1proto "github.com/pojntfx/r3map/pkg/api/proto/migration/v1"
 	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
@@ -26,12 +26,12 @@ import (
 func main() {
 	laddr := flag.String("laddr", ":1337", "Listen address")
 	size := flag.Int64("size", 4096*8192, "Size of the memory region to expose")
-	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
-	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
+	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
 	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta")
 	invalidate := flag.Int("invalidate", 0, "Percentage of chunks (0-100) to invalidate in between Track() and Finalize()")
+	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
 	flag.Parse()
 

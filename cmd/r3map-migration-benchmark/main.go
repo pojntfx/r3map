@@ -20,8 +20,8 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
-	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/v1"
-	v1proto "github.com/pojntfx/r3map/pkg/api/proto/v1"
+	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/migration/v1"
+	v1proto "github.com/pojntfx/r3map/pkg/api/proto/migration/v1"
 	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
@@ -263,7 +263,7 @@ func main() {
 
 			peer = &services.SeederRemote{
 				ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
-					res, err := client.Seeder.ReadAt(ctx, &v1frpc.ComPojtingerFelicitasR3MapV1ReadAtArgs{
+					res, err := client.Seeder.ReadAt(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1ReadAtArgs{
 						Length: int32(length),
 						Off:    off,
 					})
@@ -277,7 +277,7 @@ func main() {
 					}, err
 				},
 				Size: func(ctx context.Context) (int64, error) {
-					res, err := client.Seeder.Size(ctx, &v1frpc.ComPojtingerFelicitasR3MapV1SizeArgs{})
+					res, err := client.Seeder.Size(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1SizeArgs{})
 					if err != nil {
 						return -1, err
 					}
@@ -285,14 +285,14 @@ func main() {
 					return res.N, nil
 				},
 				Track: func(ctx context.Context) error {
-					if _, err := client.Seeder.Track(ctx, &v1frpc.ComPojtingerFelicitasR3MapV1TrackArgs{}); err != nil {
+					if _, err := client.Seeder.Track(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1TrackArgs{}); err != nil {
 						return err
 					}
 
 					return nil
 				},
 				Sync: func(ctx context.Context) ([]int64, error) {
-					res, err := client.Seeder.Sync(ctx, &v1frpc.ComPojtingerFelicitasR3MapV1SyncArgs{})
+					res, err := client.Seeder.Sync(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1SyncArgs{})
 					if err != nil {
 						return []int64{}, err
 					}
@@ -300,7 +300,7 @@ func main() {
 					return res.DirtyOffsets, nil
 				},
 				Close: func(ctx context.Context) error {
-					if _, err := client.Seeder.Close(ctx, &v1frpc.ComPojtingerFelicitasR3MapV1CloseArgs{}); err != nil {
+					if _, err := client.Seeder.Close(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1CloseArgs{}); err != nil {
 						return err
 					}
 
