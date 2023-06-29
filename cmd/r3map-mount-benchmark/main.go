@@ -70,8 +70,8 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	localLocation := flag.String("local-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for dudirekta/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
-	localChunking := flag.Bool("local-chunking", true, "Whether the local backend requires to be interfaced with in fixed chunks in tests")
+	localLocation := flag.String("local-backend-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for dudirekta/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
+	localChunking := flag.Bool("local-backend-chunking", true, "Whether the local backend requires to be interfaced with in fixed chunks in tests")
 
 	remoteBackend := flag.String(
 		"remote-backend",
@@ -81,8 +81,8 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	remoteLocation := flag.String("remote-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
-	remoteChunking := flag.Bool("remote-chunking", true, "Whether the remote backend requires to be interfaced with in fixed chunks in tests")
+	remoteLocation := flag.String("remote-backend-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
+	remoteChunking := flag.Bool("remote-backend-chunking", true, "Whether the remote backend requires to be interfaced with in fixed chunks in tests")
 
 	outputBackend := flag.String(
 		"output-backend",
@@ -92,8 +92,8 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	outputLocation := flag.String("output-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
-	outputChunking := flag.Bool("output-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks in tests")
+	outputLocation := flag.String("output-backend-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
+	outputChunking := flag.Bool("output-backend-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks in tests")
 
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 
@@ -114,7 +114,6 @@ func main() {
 
 		output backend.Backend
 	)
-
 	for _, config := range []struct {
 		backendInstance              *backend.Backend
 		backendTestInstance          *backend.Backend

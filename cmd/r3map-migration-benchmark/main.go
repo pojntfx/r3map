@@ -13,7 +13,7 @@ import (
 	"math"
 	"net"
 	"os"
-	"strings"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -22,6 +22,8 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/migration/v1"
 	v1proto "github.com/pojntfx/r3map/pkg/api/proto/migration/v1"
+	lbackend "github.com/pojntfx/r3map/pkg/backend"
+	"github.com/pojntfx/r3map/pkg/chunks"
 	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
@@ -34,22 +36,165 @@ var (
 	errNoPeerFound = errors.New("no peer found")
 )
 
+const (
+	backendTypeFile      = "file"
+	backendTypeMemory    = "memory"
+	backendTypeDirectory = "directory"
+
+	seederTypeDudirekta = "dudirekta"
+	seederTypeGrpc      = "grpc"
+	seederTypeFrpc      = "frpc"
+)
+
+var (
+	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory}
+	knownSeederTypes  = []string{seederTypeDudirekta, seederTypeGrpc, seederTypeFrpc}
+
+	errUnknownBackend = errors.New("unknown backend")
+	errUnknownSeeder  = errors.New("unknown seeder")
+)
+
 func main() {
-	s := flag.Int64("size", 4096*8192, "Size of the memory region to expose. Will be ignored if a remote seeder is used.")
+	s := flag.Int64("size", 4096*8192, "Size of the memory region, file to allocate or to size assume in case of the dudirekta/gRPC/fRPC remotes")
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
-	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
+
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")
-	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
+
+	localBackend := flag.String(
+		"local-backend",
+		backendTypeFile,
+		fmt.Sprintf(
+			"Local backend to use (one of %v)",
+			knownBackendTypes,
+		),
+	)
+	localLocation := flag.String("local-backend-location", filepath.Join(os.TempDir(), "local"), "Local backend's directory (for directory backend)")
+	localChunking := flag.Bool("local-backend-chunking", true, "Whether the local backend requires to be interfaced with in fixed chunks in tests")
+
+	remoteBackend := flag.String(
+		"remote-backend",
+		backendTypeFile,
+		fmt.Sprintf(
+			"Remote backend to use (one of %v)",
+			knownBackendTypes,
+		),
+	)
+	remoteLocation := flag.String("remote-backend-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's directory (for directory backend)")
+	remoteChunking := flag.Bool("remote-backend-chunking", true, "Whether the remote backend requires to be interfaced with in fixed chunks in tests")
+
+	outputBackend := flag.String(
+		"output-backend",
+		backendTypeFile,
+		fmt.Sprintf(
+			"Output backend to use (one of %v)",
+			knownBackendTypes,
+		),
+	)
+	outputLocation := flag.String("output-backend-location", filepath.Join(os.TempDir(), "output"), "Output backend's or directory (for directory backend)")
+	outputChunking := flag.Bool("output-backend-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks in tests")
+
+	seeder := flag.String(
+		"seeder",
+		"",
+		fmt.Sprintf(
+			"Remote seeder to use (one of %v) (keep empty to use remote backend instead)",
+			knownSeederTypes,
+		),
+	)
+	seederLocation := flag.String("seeder-location", filepath.Join(os.TempDir(), "remote"), "Remote seeder's remote address (for dudirekta/gRPC/fRPC, e.g. localhost:1337)")
+
+	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 	invalidate := flag.Int("invalidate", 0, "Percentage of chunks (0-100) to invalidate in between Track() and Finalize(). Will be ignored if a remote seeder is used.")
+
 	check := flag.Bool("check", true, "Whether to check read results against expected data")
-	raddr := flag.String("raddr", "", "Listen address for remote seeder (leave empty to create a local seeder)")
-	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta for the remote seeder")
-	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta for the remote seeder")
+	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
 	flag.Parse()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	var (
+		local backend.Backend
+		l     backend.Backend
+
+		remote backend.Backend
+		r      backend.Backend
+
+		output backend.Backend
+	)
+	for _, config := range []struct {
+		backendInstance              *backend.Backend
+		backendTestInstance          *backend.Backend
+		backendType                  string
+		backendLocation              string
+		testInstanceRequiresChunking bool
+	}{
+		{
+			&l,
+			&local,
+			*localBackend,
+			*localLocation,
+			*localChunking,
+		},
+		{
+			&r,
+			&remote,
+			*remoteBackend,
+			*remoteLocation,
+			*remoteChunking,
+		},
+		{
+			&output,
+			&output,
+			*outputBackend,
+			*outputLocation,
+			*outputChunking,
+		},
+	} {
+		switch config.backendType {
+		case backendTypeMemory:
+			*config.backendInstance = backend.NewMemoryBackend(make([]byte, *s))
+
+		case backendTypeFile:
+			file, err := os.CreateTemp("", "")
+			if err != nil {
+				panic(err)
+			}
+			defer os.RemoveAll(file.Name())
+
+			if err := file.Truncate(*s); err != nil {
+				panic(err)
+			}
+
+			*config.backendInstance = backend.NewFileBackend(file)
+
+		case backendTypeDirectory:
+			if err := os.MkdirAll(config.backendLocation, os.ModePerm); err != nil {
+				panic(err)
+			}
+
+			*config.backendInstance = lbackend.NewDirectoryBackend(config.backendLocation, *s, *chunkSize, 512, false)
+
+		default:
+			panic(errUnknownBackend)
+		}
+
+		if config.testInstanceRequiresChunking {
+			*config.backendTestInstance = lbackend.NewReaderAtBackend(
+				chunks.NewArbitraryReadWriterAt(
+					chunks.NewChunkedReadWriterAt(
+						*config.backendInstance, *chunkSize, *s / *chunkSize),
+					*chunkSize,
+				),
+				(*config.backendInstance).Size,
+				(*config.backendInstance).Sync,
+				false,
+			)
+		} else {
+			*config.backendTestInstance = *config.backendInstance
+		}
+	}
 
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -72,10 +217,180 @@ func main() {
 		invalidateLeecher func() error
 		seederBackend     backend.Backend
 	)
-	if strings.TrimSpace(*raddr) == "" {
+	switch *seeder {
+	case seederTypeDudirekta:
+		conn, err := net.Dial("tcp", *seederLocation)
+		if err != nil {
+			panic(err)
+		}
+		defer conn.Close()
+
+		ready := make(chan struct{})
+		registry := rpc.NewRegistry(
+			&struct{}{},
+			services.SeederRemote{},
+
+			time.Second*10,
+			ctx,
+			&rpc.Options{
+				ResponseBufferLen: rpc.DefaultResponseBufferLen,
+				OnClientConnect: func(remoteID string) {
+					ready <- struct{}{}
+				},
+			},
+		)
+
+		go func() {
+			if err := registry.Link(conn); err != nil {
+				if !utils.IsClosedErr(err) {
+					seederErrs <- err
+
+					return
+				}
+			}
+
+			close(seederErrs)
+		}()
+
+		<-ready
+
+		for _, candidate := range registry.Peers() {
+			peer = &candidate
+
+			break
+		}
+
+		if peer == nil {
+			panic(errNoPeerFound)
+		}
+
+	case seederTypeGrpc:
+		conn, err := grpc.Dial(*seederLocation, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			panic(err)
+		}
+		defer func() {
+			_ = conn.Close()
+
+			close(seederErrs)
+		}()
+
+		client := v1proto.NewSeederClient(conn)
+
+		peer = &services.SeederRemote{
+			ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
+				res, err := client.ReadAt(ctx, &v1proto.ReadAtArgs{
+					Length: int32(length),
+					Off:    off,
+				})
+				if err != nil {
+					return services.ReadAtResponse{}, err
+				}
+
+				return services.ReadAtResponse{
+					N: int(res.GetN()),
+					P: res.GetP(),
+				}, err
+			},
+			Size: func(ctx context.Context) (int64, error) {
+				res, err := client.Size(ctx, &v1proto.SizeArgs{})
+				if err != nil {
+					return -1, err
+				}
+
+				return res.GetN(), nil
+			},
+			Track: func(ctx context.Context) error {
+				if _, err := client.Track(ctx, &v1proto.TrackArgs{}); err != nil {
+					return err
+				}
+
+				return nil
+			},
+			Sync: func(ctx context.Context) ([]int64, error) {
+				res, err := client.Sync(ctx, &v1proto.SyncArgs{})
+				if err != nil {
+					return []int64{}, err
+				}
+
+				return res.GetDirtyOffsets(), nil
+			},
+			Close: func(ctx context.Context) error {
+				if _, err := client.Close(ctx, &v1proto.CloseArgs{}); err != nil {
+					return err
+				}
+
+				return nil
+			},
+		}
+
+	case seederTypeFrpc:
+		client, err := v1frpc.NewClient(nil, nil)
+		if err != nil {
+			panic(err)
+		}
+
+		if err := client.Connect(*seederLocation); err != nil {
+			panic(err)
+		}
+		defer func() {
+			_ = client.Close()
+
+			close(seederErrs)
+		}()
+
+		peer = &services.SeederRemote{
+			ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
+				res, err := client.Seeder.ReadAt(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1ReadAtArgs{
+					Length: int32(length),
+					Off:    off,
+				})
+				if err != nil {
+					return services.ReadAtResponse{}, err
+				}
+
+				return services.ReadAtResponse{
+					N: int(res.N),
+					P: res.P,
+				}, err
+			},
+			Size: func(ctx context.Context) (int64, error) {
+				res, err := client.Seeder.Size(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1SizeArgs{})
+				if err != nil {
+					return -1, err
+				}
+
+				return res.N, nil
+			},
+			Track: func(ctx context.Context) error {
+				if _, err := client.Seeder.Track(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1TrackArgs{}); err != nil {
+					return err
+				}
+
+				return nil
+			},
+			Sync: func(ctx context.Context) ([]int64, error) {
+				res, err := client.Seeder.Sync(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1SyncArgs{})
+				if err != nil {
+					return []int64{}, err
+				}
+
+				return res.DirtyOffsets, nil
+			},
+			Close: func(ctx context.Context) error {
+				if _, err := client.Seeder.Close(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1CloseArgs{}); err != nil {
+					return err
+				}
+
+				return nil
+			},
+		}
+
+	case "":
+		seederBackend = r
+
 		var svc *services.Seeder
 		if *slice {
-			seederBackend = backend.NewMemoryBackend(make([]byte, *s))
 
 			seeder := migration.NewSliceSeeder(
 				seederBackend,
@@ -121,11 +436,7 @@ func main() {
 			}
 
 			svc = service
-
-			log.Println("Connected to slice")
 		} else {
-			seederBackend = backend.NewMemoryBackend(make([]byte, *s))
-
 			seeder := migration.NewFileSeeder(
 				seederBackend,
 
@@ -171,8 +482,6 @@ func main() {
 			}
 
 			svc = service
-
-			log.Println("Connected on", deviceFile.Name())
 		}
 
 		peer = &services.SeederRemote{
@@ -182,179 +491,9 @@ func main() {
 			Sync:   svc.Sync,
 			Close:  svc.Close,
 		}
-	} else {
-		if *enableGrpc {
-			conn, err := grpc.Dial(*raddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-			if err != nil {
-				panic(err)
-			}
-			defer func() {
-				_ = conn.Close()
 
-				close(seederErrs)
-			}()
-
-			log.Println("Connected to", *raddr)
-
-			client := v1proto.NewSeederClient(conn)
-
-			peer = &services.SeederRemote{
-				ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
-					res, err := client.ReadAt(ctx, &v1proto.ReadAtArgs{
-						Length: int32(length),
-						Off:    off,
-					})
-					if err != nil {
-						return services.ReadAtResponse{}, err
-					}
-
-					return services.ReadAtResponse{
-						N: int(res.GetN()),
-						P: res.GetP(),
-					}, err
-				},
-				Size: func(ctx context.Context) (int64, error) {
-					res, err := client.Size(ctx, &v1proto.SizeArgs{})
-					if err != nil {
-						return -1, err
-					}
-
-					return res.GetN(), nil
-				},
-				Track: func(ctx context.Context) error {
-					if _, err := client.Track(ctx, &v1proto.TrackArgs{}); err != nil {
-						return err
-					}
-
-					return nil
-				},
-				Sync: func(ctx context.Context) ([]int64, error) {
-					res, err := client.Sync(ctx, &v1proto.SyncArgs{})
-					if err != nil {
-						return []int64{}, err
-					}
-
-					return res.GetDirtyOffsets(), nil
-				},
-				Close: func(ctx context.Context) error {
-					if _, err := client.Close(ctx, &v1proto.CloseArgs{}); err != nil {
-						return err
-					}
-
-					return nil
-				},
-			}
-		} else if *enableFrpc {
-			client, err := v1frpc.NewClient(nil, nil)
-			if err != nil {
-				panic(err)
-			}
-
-			if err := client.Connect(*raddr); err != nil {
-				panic(err)
-			}
-			defer func() {
-				_ = client.Close()
-
-				close(seederErrs)
-			}()
-
-			log.Println("Connected to", *raddr)
-
-			peer = &services.SeederRemote{
-				ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
-					res, err := client.Seeder.ReadAt(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1ReadAtArgs{
-						Length: int32(length),
-						Off:    off,
-					})
-					if err != nil {
-						return services.ReadAtResponse{}, err
-					}
-
-					return services.ReadAtResponse{
-						N: int(res.N),
-						P: res.P,
-					}, err
-				},
-				Size: func(ctx context.Context) (int64, error) {
-					res, err := client.Seeder.Size(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1SizeArgs{})
-					if err != nil {
-						return -1, err
-					}
-
-					return res.N, nil
-				},
-				Track: func(ctx context.Context) error {
-					if _, err := client.Seeder.Track(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1TrackArgs{}); err != nil {
-						return err
-					}
-
-					return nil
-				},
-				Sync: func(ctx context.Context) ([]int64, error) {
-					res, err := client.Seeder.Sync(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1SyncArgs{})
-					if err != nil {
-						return []int64{}, err
-					}
-
-					return res.DirtyOffsets, nil
-				},
-				Close: func(ctx context.Context) error {
-					if _, err := client.Seeder.Close(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1CloseArgs{}); err != nil {
-						return err
-					}
-
-					return nil
-				},
-			}
-		} else {
-			conn, err := net.Dial("tcp", *raddr)
-			if err != nil {
-				panic(err)
-			}
-			defer conn.Close()
-
-			ready := make(chan struct{})
-			registry := rpc.NewRegistry(
-				&struct{}{},
-				services.SeederRemote{},
-
-				time.Second*10,
-				ctx,
-				&rpc.Options{
-					ResponseBufferLen: rpc.DefaultResponseBufferLen,
-					OnClientConnect: func(remoteID string) {
-						ready <- struct{}{}
-					},
-				},
-			)
-
-			go func() {
-				if err := registry.Link(conn); err != nil {
-					if !utils.IsClosedErr(err) {
-						seederErrs <- err
-
-						return
-					}
-				}
-
-				close(seederErrs)
-			}()
-
-			<-ready
-
-			log.Println("Connected to", conn.RemoteAddr())
-
-			for _, candidate := range registry.Peers() {
-				peer = &candidate
-
-				break
-			}
-
-			if peer == nil {
-				panic(errNoPeerFound)
-			}
-		}
+	default:
+		panic(errUnknownSeeder)
 	}
 
 	size, err := peer.Size(ctx)
@@ -399,17 +538,11 @@ func main() {
 		}
 	}()
 
-	var (
-		leecherBackend backend.Backend
-		outputReader   io.Reader
-	)
 	if *slice {
-		leecherBackend = backend.NewMemoryBackend(make([]byte, size))
-
 		leecher := migration.NewSliceLeecher(
 			ctx,
 
-			leecherBackend,
+			l,
 			peer,
 
 			&migration.LeecherOptions{
@@ -488,26 +621,26 @@ func main() {
 
 		fmt.Printf("Finalize: %v\n", afterFinalize)
 
-		output := make([]byte, size)
-
 		beforeRead := time.Now()
 
-		copy(output, deviceSlice)
+		if _, err := io.CopyN(
+			io.NewOffsetWriter(
+				output,
+				0,
+			), bytes.NewReader(deviceSlice), size); err != nil {
+			panic(err)
+		}
 
 		afterRead := time.Since(beforeRead)
 
 		throughputMB := float64(size) / (1024 * 1024) / afterRead.Seconds()
 
 		fmt.Printf("Read throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
-
-		outputReader = bytes.NewReader(output)
 	} else {
-		leecherBackend = backend.NewMemoryBackend(make([]byte, size))
-
 		leecher := migration.NewFileLeecher(
 			ctx,
 
-			leecherBackend,
+			l,
 			peer,
 
 			&migration.LeecherOptions{
@@ -586,13 +719,11 @@ func main() {
 
 		fmt.Printf("Finalize: %v\n", afterFinalize)
 
-		output := make([]byte, size)
-
 		beforeRead := time.Now()
 
 		if _, err := io.CopyN(
 			io.NewOffsetWriter(
-				backend.NewMemoryBackend(output),
+				output,
 				0,
 			), deviceFile, size); err != nil {
 			panic(err)
@@ -603,8 +734,6 @@ func main() {
 		throughputMB := float64(size) / (1024 * 1024) / afterRead.Seconds()
 
 		fmt.Printf("Read throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
-
-		outputReader = bytes.NewReader(output)
 	}
 
 	if *check {
@@ -626,7 +755,7 @@ func main() {
 		if _, err := io.Copy(
 			leecherHash,
 			io.NewSectionReader(
-				leecherBackend,
+				l,
 				0,
 				size,
 			),
@@ -637,7 +766,11 @@ func main() {
 		outputHash := xxhash.New()
 		if _, err := io.CopyN(
 			outputHash,
-			outputReader,
+			io.NewSectionReader(
+				output,
+				0,
+				size,
+			),
 			size,
 		); err != nil {
 			panic(err)
