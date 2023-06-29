@@ -48,7 +48,6 @@ var (
 
 func main() {
 	s := flag.Int64("size", 4096*8192, "Size of the memory region, file to allocate or to size assume in case of the dudirekta remote")
-
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")

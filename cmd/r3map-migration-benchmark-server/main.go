@@ -38,6 +38,8 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	b := backend.NewMemoryBackend(make([]byte, *size))
+
 	var (
 		svc               *services.Seeder
 		invalidateLeecher func() error
@@ -45,7 +47,7 @@ func main() {
 	)
 	if *slice {
 		seeder := migration.NewSliceSeeder(
-			backend.NewMemoryBackend(make([]byte, *size)),
+			b,
 
 			&migration.SeederOptions{
 				ChunkSize: *chunkSize,
@@ -92,7 +94,7 @@ func main() {
 		log.Println("Connected to slice")
 	} else {
 		seeder := migration.NewFileSeeder(
-			backend.NewMemoryBackend(make([]byte, *size)),
+			b,
 
 			&migration.SeederOptions{
 				ChunkSize: *chunkSize,

@@ -35,7 +35,7 @@ var (
 )
 
 func main() {
-	rawSize := flag.Int64("size", 4096*8192, "Size of the memory region to expose. Will be ignored if a remote seeder is used.")
+	s := flag.Int64("size", 4096*8192, "Size of the memory region to expose. Will be ignored if a remote seeder is used.")
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")
@@ -75,7 +75,7 @@ func main() {
 	if strings.TrimSpace(*raddr) == "" {
 		var svc *services.Seeder
 		if *slice {
-			seederBackend = backend.NewMemoryBackend(make([]byte, *rawSize))
+			seederBackend = backend.NewMemoryBackend(make([]byte, *s))
 
 			seeder := migration.NewSliceSeeder(
 				seederBackend,
@@ -101,7 +101,7 @@ func main() {
 			}()
 
 			defer seeder.Close()
-			deviceSlice, s, err := seeder.Open()
+			deviceSlice, service, err := seeder.Open()
 			if err != nil {
 				panic(err)
 			}
@@ -111,7 +111,7 @@ func main() {
 					utils.NewSliceWriter(deviceSlice),
 					rand.Reader,
 					int64(math.Floor(
-						float64(*rawSize)*(float64(*invalidate)/float64(100)),
+						float64(*s)*(float64(*invalidate)/float64(100)),
 					)),
 				); err != nil {
 					return err
@@ -120,11 +120,11 @@ func main() {
 				return nil
 			}
 
-			svc = s
+			svc = service
 
 			log.Println("Connected to slice")
 		} else {
-			seederBackend = backend.NewMemoryBackend(make([]byte, *rawSize))
+			seederBackend = backend.NewMemoryBackend(make([]byte, *s))
 
 			seeder := migration.NewFileSeeder(
 				seederBackend,
@@ -151,7 +151,7 @@ func main() {
 			}()
 
 			defer seeder.Close()
-			deviceFile, s, err := seeder.Open()
+			deviceFile, service, err := seeder.Open()
 			if err != nil {
 				panic(err)
 			}
@@ -161,7 +161,7 @@ func main() {
 					deviceFile,
 					rand.Reader,
 					int64(math.Floor(
-						float64(*rawSize)*(float64(*invalidate)/float64(100)),
+						float64(*s)*(float64(*invalidate)/float64(100)),
 					)),
 				); err != nil {
 					return err
@@ -170,7 +170,7 @@ func main() {
 				return nil
 			}
 
-			svc = s
+			svc = service
 
 			log.Println("Connected on", deviceFile.Name())
 		}

@@ -2,51 +2,107 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/mount/v1"
 	v1proto "github.com/pojntfx/r3map/pkg/api/proto/mount/v1"
+	lbackend "github.com/pojntfx/r3map/pkg/backend"
+	"github.com/pojntfx/r3map/pkg/chunks"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
 	"google.golang.org/grpc"
 )
 
+const (
+	backendTypeFile      = "file"
+	backendTypeMemory    = "memory"
+	backendTypeDirectory = "directory"
+)
+
+var (
+	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory}
+
+	errUnknownBackend = errors.New("unknown backend")
+)
+
 func main() {
 	laddr := flag.String("addr", ":1337", "Listen address")
-	size := flag.Int64("size", 4096*8192, "Size of the memory region to expose (ignored if file-based backend is used)")
-	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
 	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
 	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
-	memory := flag.Bool("memory", false, "Whether to use memory instead of file-based backend")
-	file := flag.String("file", "disk.img", "Path to file to expose (ignored if memory-based backend is used)")
+	size := flag.Int64("size", 4096*8192, "Size of the memory region or file to allocate")
+	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
+	bck := flag.String(
+		"backend",
+		backendTypeFile,
+		fmt.Sprintf(
+			"Backend to use (one of %v)",
+			knownBackendTypes,
+		),
+	)
+	location := flag.String("location", filepath.Join(os.TempDir(), "local"), "Backend's directory (for directory backend)")
+	chunking := flag.Bool("chunking", true, "Whether the backend requires to be interfaced with in fixed chunks in tests")
 
 	flag.Parse()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var svc *services.Backend
-	if *memory {
-		svc = services.NewBackend(backend.NewMemoryBackend(make([]byte, *size)), *verbose, *chunkSize)
-	} else {
-		file, err := os.OpenFile(*file, os.O_RDWR, os.ModeAppend)
+	var b backend.Backend
+	switch *bck {
+	case backendTypeMemory:
+		b = backend.NewMemoryBackend(make([]byte, *size))
+
+	case backendTypeFile:
+		file, err := os.CreateTemp("", "")
 		if err != nil {
 			panic(err)
 		}
-		defer file.Close()
+		defer os.RemoveAll(file.Name())
 
-		svc = services.NewBackend(backend.NewFileBackend(file), *verbose, *chunkSize)
+		if err := file.Truncate(*size); err != nil {
+			panic(err)
+		}
+
+		b = backend.NewFileBackend(file)
+
+	case backendTypeDirectory:
+		if err := os.MkdirAll(*location, os.ModePerm); err != nil {
+			panic(err)
+		}
+
+		b = lbackend.NewDirectoryBackend(*location, *size, *chunkSize, 512, false)
+	default:
+		panic(errUnknownBackend)
 	}
 
-	errs := make(chan error)
+	if *chunking {
+		b = lbackend.NewReaderAtBackend(
+			chunks.NewArbitraryReadWriterAt(
+				chunks.NewChunkedReadWriterAt(
+					b, *chunkSize, *size / *chunkSize),
+				*chunkSize,
+			),
+			(b).Size,
+			(b).Sync,
+			false,
+		)
+	}
+
+	var (
+		svc  = services.NewBackend(b, *verbose, *chunkSize)
+		errs = make(chan error)
+	)
 	if *enableGrpc {
 		server := grpc.NewServer()
 
