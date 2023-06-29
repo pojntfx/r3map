@@ -10,14 +10,14 @@ import (
 type RPCBackend struct {
 	ctx context.Context
 
-	remote services.BackendRemote
+	remote *services.BackendRemote
 
 	verbose bool
 }
 
 func NewRPCBackend(
 	ctx context.Context,
-	remote services.BackendRemote,
+	remote *services.BackendRemote,
 	verbose bool,
 ) *RPCBackend {
 	return &RPCBackend{ctx, remote, verbose}
