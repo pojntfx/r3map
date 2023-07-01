@@ -11,11 +11,10 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 	bbackend "github.com/pojntfx/r3map/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/chunks"
-	"github.com/pojntfx/r3map/pkg/device"
 	"github.com/pojntfx/r3map/pkg/utils"
 )
 
-type MountOptions struct {
+type ManagedMountOptions struct {
 	ChunkSize int64
 
 	PullWorkers  int64
@@ -28,7 +27,7 @@ type MountOptions struct {
 	Verbose bool
 }
 
-type MountHooks struct {
+type ManagedMountHooks struct {
 	OnBeforeSync func() error
 
 	OnBeforeClose func() error
@@ -36,15 +35,15 @@ type MountHooks struct {
 	OnChunkIsLocal func(off int64) error
 }
 
-type PathMount struct {
+type ManagedPathMount struct {
 	ctx context.Context
 
 	remote,
 	local,
 	syncer backend.Backend
 
-	options *MountOptions
-	hooks   *MountHooks
+	options *ManagedMountOptions
+	hooks   *ManagedMountHooks
 
 	serverOptions *server.Options
 	clientOptions *client.Options
@@ -52,26 +51,26 @@ type PathMount struct {
 	serverFile *os.File
 	pusher     *chunks.Pusher
 	puller     *chunks.Puller
-	dev        *device.PathDevice
+	dev        *DirectPathMount
 
 	wg   sync.WaitGroup
 	errs chan error
 }
 
-func NewPathMount(
+func NewManagedPathMount(
 	ctx context.Context,
 
 	remote backend.Backend,
 	local backend.Backend,
 
-	options *MountOptions,
-	hooks *MountHooks,
+	options *ManagedMountOptions,
+	hooks *ManagedMountHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *PathMount {
+) *ManagedPathMount {
 	if options == nil {
-		options = &MountOptions{}
+		options = &ManagedMountOptions{}
 	}
 
 	if options.ChunkSize <= 0 {
@@ -93,10 +92,10 @@ func NewPathMount(
 	}
 
 	if hooks == nil {
-		hooks = &MountHooks{}
+		hooks = &ManagedMountHooks{}
 	}
 
-	return &PathMount{
+	return &ManagedPathMount{
 		ctx: ctx,
 
 		remote: remote,
@@ -112,7 +111,7 @@ func NewPathMount(
 	}
 }
 
-func (m *PathMount) Wait() error {
+func (m *ManagedPathMount) Wait() error {
 	for err := range m.errs {
 		if err != nil {
 			return err
@@ -122,7 +121,7 @@ func (m *PathMount) Wait() error {
 	return nil
 }
 
-func (m *PathMount) Open() (string, int64, error) {
+func (m *ManagedPathMount) Open() (string, int64, error) {
 	size, err := m.remote.Size()
 	if err != nil {
 		return "", 0, err
@@ -249,7 +248,7 @@ func (m *PathMount) Open() (string, int64, error) {
 		m.options.Verbose,
 	)
 
-	m.dev = device.NewPathDevice(
+	m.dev = NewDirectPathMount(
 		m.syncer,
 		m.serverFile,
 
@@ -275,7 +274,7 @@ func (m *PathMount) Open() (string, int64, error) {
 	return devicePath, size, nil
 }
 
-func (m *PathMount) Close() error {
+func (m *ManagedPathMount) Close() error {
 	if m.syncer != nil {
 		_ = m.syncer.Sync()
 	}
@@ -313,7 +312,7 @@ func (m *PathMount) Close() error {
 	return nil
 }
 
-func (m *PathMount) Sync() error {
+func (m *ManagedPathMount) Sync() error {
 	// No need to call `OnBeforeSync` here, the syncer already calls this internally
 
 	return m.syncer.Sync()

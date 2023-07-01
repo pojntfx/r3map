@@ -9,35 +9,35 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 )
 
-type FileMount struct {
-	path *PathMount
+type ManagedFileMount struct {
+	path *ManagedPathMount
 
 	deviceFile *os.File
 }
 
-type FileMountHooks struct {
+type ManagedFileMountHooks struct {
 	OnChunkIsLocal func(off int64) error
 }
 
-func NewFileMount(
+func NewManagedFileMount(
 	ctx context.Context,
 
 	remote backend.Backend,
 	local backend.Backend,
 
-	options *MountOptions,
-	hooks *FileMountHooks,
+	options *ManagedMountOptions,
+	hooks *ManagedFileMountHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *FileMount {
-	h := &MountHooks{}
+) *ManagedFileMount {
+	h := &ManagedMountHooks{}
 	if hooks != nil {
 		h.OnChunkIsLocal = hooks.OnChunkIsLocal
 	}
 
-	m := &FileMount{
-		path: NewPathMount(
+	m := &ManagedFileMount{
+		path: NewManagedPathMount(
 			ctx,
 
 			remote,
@@ -58,11 +58,11 @@ func NewFileMount(
 	return m
 }
 
-func (m *FileMount) Wait() error {
+func (m *ManagedFileMount) Wait() error {
 	return m.path.Wait()
 }
 
-func (m *FileMount) Open() (*os.File, error) {
+func (m *ManagedFileMount) Open() (*os.File, error) {
 	devicePath, _, err := m.path.Open()
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (m *FileMount) Open() (*os.File, error) {
 	return m.deviceFile, nil
 }
 
-func (m *FileMount) onBeforeSync() error {
+func (m *ManagedFileMount) onBeforeSync() error {
 	if m.deviceFile != nil {
 		if err := m.deviceFile.Sync(); err != nil {
 			return err
@@ -86,7 +86,7 @@ func (m *FileMount) onBeforeSync() error {
 	return nil
 }
 
-func (m *FileMount) onBeforeClose() error {
+func (m *ManagedFileMount) onBeforeClose() error {
 	if m.deviceFile != nil {
 		_ = m.deviceFile.Close()
 
@@ -96,11 +96,11 @@ func (m *FileMount) onBeforeClose() error {
 	return nil
 }
 
-func (m *FileMount) Close() error {
+func (m *ManagedFileMount) Close() error {
 	return m.path.Close()
 }
 
-func (m *FileMount) Sync() error {
+func (m *ManagedFileMount) Sync() error {
 	if err := m.onBeforeSync(); err != nil {
 		return err
 	}

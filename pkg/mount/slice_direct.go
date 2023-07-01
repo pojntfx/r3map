@@ -1,4 +1,4 @@
-package device
+package mount
 
 import (
 	"os"
@@ -10,8 +10,8 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 )
 
-type SliceDevice struct {
-	path *PathDevice
+type DirectSliceMount struct {
+	path *DirectPathMount
 
 	devicePath string
 	deviceFile *os.File
@@ -22,15 +22,15 @@ type SliceDevice struct {
 	b backend.Backend
 }
 
-func NewSliceDevice(
+func NewDirectSliceMount(
 	b backend.Backend,
 	f *os.File,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *SliceDevice {
-	return &SliceDevice{
-		path: &PathDevice{
+) *DirectSliceMount {
+	return &DirectSliceMount{
+		path: &DirectPathMount{
 			b: b,
 			f: f,
 
@@ -46,11 +46,11 @@ func NewSliceDevice(
 	}
 }
 
-func (d *SliceDevice) Wait() error {
+func (d *DirectSliceMount) Wait() error {
 	return d.path.Wait()
 }
 
-func (d *SliceDevice) Open() ([]byte, error) {
+func (d *DirectSliceMount) Open() ([]byte, error) {
 	size, err := d.b.Size()
 	if err != nil {
 		return []byte{}, err
@@ -80,7 +80,7 @@ func (d *SliceDevice) Open() ([]byte, error) {
 	return d.slice, nil
 }
 
-func (d *SliceDevice) Close() error {
+func (d *DirectSliceMount) Close() error {
 	d.mmapMount.Lock()
 	if d.slice != nil {
 		_ = d.slice.Unlock()
@@ -98,7 +98,7 @@ func (d *SliceDevice) Close() error {
 	return d.path.Close()
 }
 
-func (d *SliceDevice) Sync() error {
+func (d *DirectSliceMount) Sync() error {
 	d.mmapMount.Lock()
 	if d.slice != nil {
 		if err := d.slice.Flush(); err != nil {

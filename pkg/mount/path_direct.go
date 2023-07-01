@@ -1,4 +1,4 @@
-package device
+package mount
 
 import (
 	"net"
@@ -11,7 +11,7 @@ import (
 	"github.com/pojntfx/r3map/pkg/utils"
 )
 
-type PathDevice struct {
+type DirectPathMount struct {
 	b backend.Backend
 	f *os.File
 
@@ -27,14 +27,14 @@ type PathDevice struct {
 	errs chan error
 }
 
-func NewPathDevice(
+func NewDirectPathMount(
 	b backend.Backend,
 	f *os.File,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *PathDevice {
-	return &PathDevice{
+) *DirectPathMount {
+	return &DirectPathMount{
 		b: b,
 		f: f,
 
@@ -45,7 +45,7 @@ func NewPathDevice(
 	}
 }
 
-func (d *PathDevice) Wait() error {
+func (d *DirectPathMount) Wait() error {
 	for err := range d.errs {
 		if err != nil {
 			return err
@@ -55,7 +55,7 @@ func (d *PathDevice) Wait() error {
 	return nil
 }
 
-func (d *PathDevice) Open() error {
+func (d *DirectPathMount) Open() error {
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		return err
@@ -127,7 +127,7 @@ func (d *PathDevice) Open() error {
 	return nil
 }
 
-func (d *PathDevice) Close() error {
+func (d *DirectPathMount) Close() error {
 	_ = client.Disconnect(d.f)
 
 	if d.cc != nil {
@@ -155,6 +155,6 @@ func (d *PathDevice) Close() error {
 	return nil
 }
 
-func (d *PathDevice) Sync() error {
+func (d *DirectPathMount) Sync() error {
 	return nil
 }

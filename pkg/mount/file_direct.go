@@ -1,4 +1,4 @@
-package device
+package mount
 
 import (
 	"os"
@@ -8,22 +8,22 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 )
 
-type FileDevice struct {
-	path *PathDevice
+type DirectFileMount struct {
+	path *DirectPathMount
 
 	devicePath string
 	deviceFile *os.File
 }
 
-func NewFileDevice(
+func NewDirectFileMount(
 	b backend.Backend,
 	f *os.File,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *FileDevice {
-	return &FileDevice{
-		path: &PathDevice{
+) *DirectFileMount {
+	return &DirectFileMount{
+		path: &DirectPathMount{
 			b: b,
 			f: f,
 
@@ -37,11 +37,11 @@ func NewFileDevice(
 	}
 }
 
-func (d *FileDevice) Wait() error {
+func (d *DirectFileMount) Wait() error {
 	return d.path.Wait()
 }
 
-func (d *FileDevice) Open() (*os.File, error) {
+func (d *DirectFileMount) Open() (*os.File, error) {
 	if err := d.path.Open(); err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (d *FileDevice) Open() (*os.File, error) {
 	return d.deviceFile, nil
 }
 
-func (d *FileDevice) Close() error {
+func (d *DirectFileMount) Close() error {
 	if d.deviceFile != nil {
 		_ = d.deviceFile.Close()
 
@@ -65,7 +65,7 @@ func (d *FileDevice) Close() error {
 	return d.path.Close()
 }
 
-func (d *FileDevice) Sync() error {
+func (d *DirectFileMount) Sync() error {
 	if d.deviceFile != nil {
 		if err := d.deviceFile.Sync(); err != nil {
 			return err

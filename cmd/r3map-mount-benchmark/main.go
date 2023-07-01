@@ -467,13 +467,13 @@ func main() {
 		preemptivelyPulledChunks int64
 	)
 	if *slice {
-		mnt := mount.NewSliceMount(
+		mnt := mount.NewManagedSliceMount(
 			ctx,
 
 			r,
 			l,
 
-			&mount.MountOptions{
+			&mount.ManagedMountOptions{
 				ChunkSize: *chunkSize,
 
 				PullWorkers: *pullWorkers,
@@ -484,7 +484,7 @@ func main() {
 
 				Verbose: *verbose,
 			},
-			&mount.SliceMountHooks{
+			&mount.ManagedSliceMountHooks{
 				OnChunkIsLocal: func(off int64) error {
 					preemptivelyPulledChunks++
 
@@ -519,13 +519,13 @@ func main() {
 
 		mountedReader, m, sync = bytes.NewReader(mountedSlice), mountedSlice, mnt.Sync
 	} else {
-		mnt := mount.NewFileMount(
+		mnt := mount.NewManagedFileMount(
 			ctx,
 
 			r,
 			l,
 
-			&mount.MountOptions{
+			&mount.ManagedMountOptions{
 				ChunkSize: *chunkSize,
 
 				PullWorkers: *pullWorkers,
@@ -536,7 +536,7 @@ func main() {
 
 				Verbose: *verbose,
 			},
-			&mount.FileMountHooks{
+			&mount.ManagedFileMountHooks{
 				OnChunkIsLocal: func(off int64) error {
 					preemptivelyPulledChunks++
 

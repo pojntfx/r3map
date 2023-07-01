@@ -9,7 +9,7 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 	bbackend "github.com/pojntfx/r3map/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/chunks"
-	"github.com/pojntfx/r3map/pkg/device"
+	"github.com/pojntfx/r3map/pkg/mount"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
 )
@@ -36,7 +36,7 @@ type PathSeeder struct {
 	clientOptions *client.Options
 
 	serverFile *os.File
-	dev        *device.PathDevice
+	dev        *mount.DirectPathMount
 
 	wg   sync.WaitGroup
 	errs chan error
@@ -118,7 +118,7 @@ func (s *PathSeeder) Open() (string, int64, *services.Seeder, error) {
 		false,
 	)
 
-	s.dev = device.NewPathDevice(
+	s.dev = mount.NewDirectPathMount(
 		b,
 		s.serverFile,
 

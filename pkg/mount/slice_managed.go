@@ -11,12 +11,12 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 )
 
-type SliceMountHooks struct {
+type ManagedSliceMountHooks struct {
 	OnChunkIsLocal func(off int64) error
 }
 
-type SliceMount struct {
-	path *PathMount
+type ManagedSliceMount struct {
+	path *ManagedPathMount
 
 	deviceFile *os.File
 
@@ -24,25 +24,25 @@ type SliceMount struct {
 	mmapMount sync.Mutex
 }
 
-func NewSliceMount(
+func NewManagedSliceMount(
 	ctx context.Context,
 
 	remote backend.Backend,
 	local backend.Backend,
 
-	options *MountOptions,
-	hooks *SliceMountHooks,
+	options *ManagedMountOptions,
+	hooks *ManagedSliceMountHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *SliceMount {
-	h := &MountHooks{}
+) *ManagedSliceMount {
+	h := &ManagedMountHooks{}
 	if hooks != nil {
 		h.OnChunkIsLocal = hooks.OnChunkIsLocal
 	}
 
-	m := &SliceMount{
-		path: NewPathMount(
+	m := &ManagedSliceMount{
+		path: NewManagedPathMount(
 			ctx,
 
 			remote,
@@ -63,11 +63,11 @@ func NewSliceMount(
 	return m
 }
 
-func (m *SliceMount) Wait() error {
+func (m *ManagedSliceMount) Wait() error {
 	return m.path.Wait()
 }
 
-func (m *SliceMount) Open() ([]byte, error) {
+func (m *ManagedSliceMount) Open() ([]byte, error) {
 	devicePath, size, err := m.path.Open()
 	if err != nil {
 		return []byte{}, err
@@ -92,7 +92,7 @@ func (m *SliceMount) Open() ([]byte, error) {
 	return m.slice, nil
 }
 
-func (m *SliceMount) onBeforeSync() error {
+func (m *ManagedSliceMount) onBeforeSync() error {
 	m.mmapMount.Lock()
 	if m.slice != nil {
 		if err := m.slice.Flush(); err != nil {
@@ -104,7 +104,7 @@ func (m *SliceMount) onBeforeSync() error {
 	return nil
 }
 
-func (m *SliceMount) onBeforeClose() error {
+func (m *ManagedSliceMount) onBeforeClose() error {
 	m.mmapMount.Lock()
 	if m.slice != nil {
 		_ = m.slice.Unlock()
@@ -122,11 +122,11 @@ func (m *SliceMount) onBeforeClose() error {
 	return nil
 }
 
-func (m *SliceMount) Close() error {
+func (m *ManagedSliceMount) Close() error {
 	return m.path.Close()
 }
 
-func (m *SliceMount) Sync() error {
+func (m *ManagedSliceMount) Sync() error {
 	if err := m.onBeforeSync(); err != nil {
 		return err
 	}

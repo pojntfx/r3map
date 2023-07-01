@@ -11,7 +11,7 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/server"
 	bbackend "github.com/pojntfx/r3map/pkg/backend"
 	"github.com/pojntfx/r3map/pkg/chunks"
-	"github.com/pojntfx/r3map/pkg/device"
+	"github.com/pojntfx/r3map/pkg/mount"
 	"github.com/pojntfx/r3map/pkg/services"
 	"github.com/pojntfx/r3map/pkg/utils"
 )
@@ -68,7 +68,7 @@ type PathLeecher struct {
 	clientOptions *client.Options
 
 	serverFile *os.File
-	dev        *device.PathDevice
+	dev        *mount.DirectPathMount
 
 	devicePath           string
 	syncedReadWriter     *chunks.SyncedReadWriterAt
@@ -229,7 +229,7 @@ func (l *PathLeecher) Open() (int64, error) {
 		l.options.Verbose,
 	)
 
-	l.dev = device.NewPathDevice(
+	l.dev = mount.NewDirectPathMount(
 		l.syncer,
 		l.serverFile,
 
