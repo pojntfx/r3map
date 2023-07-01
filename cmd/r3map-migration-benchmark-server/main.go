@@ -168,7 +168,6 @@ func main() {
 
 				Verbose: *verbose,
 			},
-			&migration.FileSeederHooks{},
 
 			nil,
 			nil,

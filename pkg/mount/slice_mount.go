@@ -59,7 +59,6 @@ func NewSliceMount(
 	m.path.hooks.OnBeforeSync = m.onBeforeSync
 
 	m.path.hooks.OnBeforeClose = m.onBeforeClose
-	m.path.hooks.OnAfterClose = m.onAfterClose
 
 	return m
 }
@@ -106,14 +105,6 @@ func (m *SliceMount) onBeforeSync() error {
 }
 
 func (m *SliceMount) onBeforeClose() error {
-	if m.deviceFile != nil {
-		_ = m.deviceFile.Close()
-	}
-
-	return nil
-}
-
-func (m *SliceMount) onAfterClose() error {
 	m.mmapMount.Lock()
 	if m.slice != nil {
 		_ = m.slice.Unlock()
@@ -123,6 +114,10 @@ func (m *SliceMount) onAfterClose() error {
 		m.slice = nil
 	}
 	m.mmapMount.Unlock()
+
+	if m.deviceFile != nil {
+		_ = m.deviceFile.Close()
+	}
 
 	return nil
 }

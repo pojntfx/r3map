@@ -51,7 +51,6 @@ type LeecherHooks struct {
 	OnAfterSync func(dirtyOffsets []int64) error
 
 	OnBeforeClose func() error
-	OnAfterClose  func() error
 
 	OnChunkIsLocal func(off int64) error
 }
@@ -290,12 +289,6 @@ func (l *PathLeecher) Close() error {
 
 	if l.dev != nil {
 		_ = l.dev.Close()
-	}
-
-	if hook := l.hooks.OnAfterClose; hook != nil {
-		if err := hook(); err != nil {
-			return err
-		}
 	}
 
 	if l.puller != nil {

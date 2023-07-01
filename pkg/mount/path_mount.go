@@ -32,7 +32,6 @@ type MountHooks struct {
 	OnBeforeSync func() error
 
 	OnBeforeClose func() error
-	OnAfterClose  func() error
 
 	OnChunkIsLocal func(off int64) error
 }
@@ -289,12 +288,6 @@ func (m *PathMount) Close() error {
 
 	if m.dev != nil {
 		_ = m.dev.Close()
-	}
-
-	if hook := m.hooks.OnAfterClose; hook != nil {
-		if err := hook(); err != nil {
-			return err
-		}
 	}
 
 	if m.puller != nil {

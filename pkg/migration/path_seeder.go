@@ -24,7 +24,6 @@ type SeederHooks struct {
 	OnBeforeSync func() error
 
 	OnBeforeClose func() error
-	OnAfterClose  func() error
 }
 
 type PathSeeder struct {
@@ -186,12 +185,6 @@ func (s *PathSeeder) Close() error {
 
 	if s.dev != nil {
 		_ = s.dev.Close()
-	}
-
-	if hook := s.hooks.OnAfterClose; hook != nil {
-		if err := hook(); err != nil {
-			return err
-		}
 	}
 
 	if s.serverFile != nil {

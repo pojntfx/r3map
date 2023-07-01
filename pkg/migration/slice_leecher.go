@@ -63,7 +63,6 @@ func NewSliceLeecher(
 	}
 
 	l.path.hooks.OnBeforeClose = l.onBeforeClose
-	l.path.hooks.OnAfterClose = l.onAfterClose
 
 	return l
 }
@@ -109,14 +108,6 @@ func (l *SliceLeecher) Finalize() ([]byte, error) {
 }
 
 func (l *SliceLeecher) onBeforeClose() error {
-	if l.deviceFile != nil {
-		_ = l.deviceFile.Close()
-	}
-
-	return nil
-}
-
-func (l *SliceLeecher) onAfterClose() error {
 	l.mmapMount.Lock()
 	if l.slice != nil {
 		_ = l.slice.Unlock()
@@ -126,6 +117,10 @@ func (l *SliceLeecher) onAfterClose() error {
 		l.slice = nil
 	}
 	l.mmapMount.Unlock()
+
+	if l.deviceFile != nil {
+		_ = l.deviceFile.Close()
+	}
 
 	return nil
 }

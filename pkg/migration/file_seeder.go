@@ -9,10 +9,6 @@ import (
 	"github.com/pojntfx/r3map/pkg/services"
 )
 
-type FileSeederHooks struct {
-	OnAfterClose func() error
-}
-
 type FileSeeder struct {
 	path *PathSeeder
 
@@ -23,22 +19,16 @@ func NewFileSeeder(
 	local backend.Backend,
 
 	options *SeederOptions,
-	hooks *FileSeederHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
 ) *FileSeeder {
-	h := &SeederHooks{}
-	if hooks != nil {
-		h.OnAfterClose = hooks.OnAfterClose
-	}
-
 	s := &FileSeeder{
 		path: NewPathSeeder(
 			local,
 
 			options,
-			h,
+			nil,
 
 			serverOptions,
 			clientOptions,

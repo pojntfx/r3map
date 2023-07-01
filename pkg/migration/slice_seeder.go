@@ -45,7 +45,6 @@ func NewSliceSeeder(
 	s.path.hooks.OnBeforeSync = s.onBeforeSync
 
 	s.path.hooks.OnBeforeClose = s.onBeforeClose
-	s.path.hooks.OnAfterClose = s.onAfterClose
 
 	return s
 }
@@ -92,14 +91,6 @@ func (m *SliceSeeder) onBeforeSync() error {
 }
 
 func (m *SliceSeeder) onBeforeClose() error {
-	if m.deviceFile != nil {
-		_ = m.deviceFile.Close()
-	}
-
-	return nil
-}
-
-func (m *SliceSeeder) onAfterClose() error {
 	m.mmapMount.Lock()
 	if m.slice != nil {
 		_ = m.slice.Unlock()
@@ -109,6 +100,10 @@ func (m *SliceSeeder) onAfterClose() error {
 		m.slice = nil
 	}
 	m.mmapMount.Unlock()
+
+	if m.deviceFile != nil {
+		_ = m.deviceFile.Close()
+	}
 
 	return nil
 }

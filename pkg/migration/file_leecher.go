@@ -13,8 +13,6 @@ import (
 type FileLeecherHooks struct {
 	OnAfterSync func(dirtyOffsets []int64) error
 
-	OnAfterClose func() error
-
 	OnChunkIsLocal func(off int64) error
 }
 
@@ -39,8 +37,6 @@ func NewFileLeecher(
 	h := &LeecherHooks{}
 	if hooks != nil {
 		h.OnAfterSync = hooks.OnAfterSync
-
-		h.OnAfterClose = hooks.OnAfterClose
 
 		h.OnChunkIsLocal = hooks.OnChunkIsLocal
 	}
