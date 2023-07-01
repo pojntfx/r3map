@@ -69,7 +69,7 @@ type PathLeecher struct {
 	clientOptions *client.Options
 
 	serverFile *os.File
-	dev        *device.Device
+	dev        *device.PathDevice
 
 	devicePath           string
 	syncedReadWriter     *chunks.SyncedReadWriterAt
@@ -230,7 +230,7 @@ func (l *PathLeecher) Open() (int64, error) {
 		l.options.Verbose,
 	)
 
-	l.dev = device.NewDevice(
+	l.dev = device.NewPathDevice(
 		l.syncer,
 		l.serverFile,
 

@@ -101,5 +101,9 @@ func (m *FileMount) Close() error {
 }
 
 func (m *FileMount) Sync() error {
+	if err := m.onBeforeSync(); err != nil {
+		return err
+	}
+
 	return m.path.Sync()
 }

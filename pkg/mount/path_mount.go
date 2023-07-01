@@ -53,7 +53,7 @@ type PathMount struct {
 	serverFile *os.File
 	pusher     *chunks.Pusher
 	puller     *chunks.Puller
-	dev        *device.Device
+	dev        *device.PathDevice
 
 	wg   sync.WaitGroup
 	errs chan error
@@ -250,7 +250,7 @@ func (m *PathMount) Open() (string, int64, error) {
 		m.options.Verbose,
 	)
 
-	m.dev = device.NewDevice(
+	m.dev = device.NewPathDevice(
 		m.syncer,
 		m.serverFile,
 
@@ -321,5 +321,11 @@ func (m *PathMount) Close() error {
 }
 
 func (m *PathMount) Sync() error {
+	if hook := m.hooks.OnBeforeSync; hook != nil {
+		if err := hook(); err != nil {
+			return err
+		}
+	}
+
 	return m.syncer.Sync()
 }

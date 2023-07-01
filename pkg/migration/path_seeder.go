@@ -37,7 +37,7 @@ type PathSeeder struct {
 	clientOptions *client.Options
 
 	serverFile *os.File
-	dev        *device.Device
+	dev        *device.PathDevice
 
 	wg   sync.WaitGroup
 	errs chan error
@@ -119,7 +119,7 @@ func (s *PathSeeder) Open() (string, int64, *services.Seeder, error) {
 		false,
 	)
 
-	s.dev = device.NewDevice(
+	s.dev = device.NewPathDevice(
 		b,
 		s.serverFile,
 

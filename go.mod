@@ -10,7 +10,7 @@ require (
 	github.com/loopholelabs/polyglot-go v0.5.1
 	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/pojntfx/dudirekta v0.5.0
-	github.com/pojntfx/go-nbd v0.1.9
+	github.com/pojntfx/go-nbd v0.1.10
 	github.com/redis/go-redis/v9 v9.0.5
 	github.com/rs/zerolog v1.29.1
 	github.com/schollz/progressbar/v3 v3.13.1
@@ -44,7 +44,7 @@ require (
 	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/term v0.9.0 // indirect
 	golang.org/x/text v0.10.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230626202813-9b080da550b3 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230629202037-9506855d4529 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 )
 

@@ -11,7 +11,7 @@ import (
 	"github.com/pojntfx/r3map/pkg/utils"
 )
 
-type Device struct {
+type PathDevice struct {
 	b backend.Backend
 	f *os.File
 
@@ -27,14 +27,14 @@ type Device struct {
 	errs chan error
 }
 
-func NewDevice(
+func NewPathDevice(
 	b backend.Backend,
 	f *os.File,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
-) *Device {
-	return &Device{
+) *PathDevice {
+	return &PathDevice{
 		b: b,
 		f: f,
 
@@ -45,7 +45,7 @@ func NewDevice(
 	}
 }
 
-func (d *Device) Open() error {
+func (d *PathDevice) Open() error {
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
 		return err
@@ -117,7 +117,7 @@ func (d *Device) Open() error {
 	return nil
 }
 
-func (d *Device) Wait() error {
+func (d *PathDevice) Wait() error {
 	for err := range d.errs {
 		if err != nil {
 			return err
@@ -127,7 +127,7 @@ func (d *Device) Wait() error {
 	return nil
 }
 
-func (d *Device) Close() error {
+func (d *PathDevice) Close() error {
 	_ = client.Disconnect(d.f)
 
 	if d.cc != nil {

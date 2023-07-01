@@ -132,5 +132,9 @@ func (m *SliceMount) Close() error {
 }
 
 func (m *SliceMount) Sync() error {
+	if err := m.onBeforeSync(); err != nil {
+		return err
+	}
+
 	return m.path.Sync()
 }
