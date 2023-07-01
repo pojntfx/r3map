@@ -321,11 +321,7 @@ func (m *PathMount) Close() error {
 }
 
 func (m *PathMount) Sync() error {
-	if hook := m.hooks.OnBeforeSync; hook != nil {
-		if err := hook(); err != nil {
-			return err
-		}
-	}
+	// No need to call `OnBeforeSync` here, the syncer already calls this internally
 
 	return m.syncer.Sync()
 }

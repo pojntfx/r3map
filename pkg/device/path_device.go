@@ -45,6 +45,16 @@ func NewPathDevice(
 	}
 }
 
+func (d *PathDevice) Wait() error {
+	for err := range d.errs {
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (d *PathDevice) Open() error {
 	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
 	if err != nil {
@@ -117,16 +127,6 @@ func (d *PathDevice) Open() error {
 	return nil
 }
 
-func (d *PathDevice) Wait() error {
-	for err := range d.errs {
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (d *PathDevice) Close() error {
 	_ = client.Disconnect(d.f)
 
@@ -152,5 +152,9 @@ func (d *PathDevice) Close() error {
 		d.errs = nil
 	}
 
+	return nil
+}
+
+func (d *PathDevice) Sync() error {
 	return nil
 }
