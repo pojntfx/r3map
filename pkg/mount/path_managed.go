@@ -142,7 +142,7 @@ func (m *ManagedPathMount) Open() (string, int64, error) {
 	if m.options.PushWorkers > 0 {
 		m.pusher = chunks.NewPusher(
 			m.ctx,
-			chunks.NewChunkedReadWriterAt(m.local, m.options.ChunkSize, chunkCount),
+			m.local,
 			m.remote,
 			m.options.ChunkSize,
 			m.options.PushInterval,
@@ -165,7 +165,7 @@ func (m *ManagedPathMount) Open() (string, int64, error) {
 
 		local = m.pusher
 	} else {
-		local = chunks.NewChunkedReadWriterAt(m.local, m.options.ChunkSize, chunkCount)
+		local = m.local
 	}
 
 	syncedReadWriter := chunks.NewSyncedReadWriterAt(m.remote, local, func(off int64) error {

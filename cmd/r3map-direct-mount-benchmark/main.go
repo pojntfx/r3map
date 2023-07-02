@@ -65,7 +65,7 @@ func main() {
 		),
 	)
 	remoteLocation := flag.String("remote-backend-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
-	remoteChunking := flag.Bool("remote-backend-chunking", true, "Whether the remote backend requires to be interfaced with in fixed chunks in tests")
+	remoteChunking := flag.Bool("remote-backend-chunking", false, "Whether the remote backend requires to be interfaced with in fixed chunks")
 
 	outputBackend := flag.String(
 		"output-backend",
@@ -76,7 +76,7 @@ func main() {
 		),
 	)
 	outputLocation := flag.String("output-backend-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
-	outputChunking := flag.Bool("output-backend-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks in tests")
+	outputChunking := flag.Bool("output-backend-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks")
 
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 

@@ -47,6 +47,7 @@ func main() {
 
 	size := flag.Int64("size", 4096*8192, "Size of the memory region or file to allocate")
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
+	maxChunkSize := flag.Int64("max-chunk-size", services.MaxChunkSize, "Maximum chunk size to support")
 	bck := flag.String(
 		"backend",
 		backendTypeFile,
@@ -56,7 +57,7 @@ func main() {
 		),
 	)
 	location := flag.String("location", filepath.Join(os.TempDir(), "local"), "Backend's directory (for directory backend)")
-	chunking := flag.Bool("chunking", true, "Whether the backend requires to be interfaced with in fixed chunks in tests")
+	chunking := flag.Bool("chunking", false, "Whether the backend requires to be interfaced with in fixed chunks")
 
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 	invalidate := flag.Int("invalidate", 0, "Percentage of chunks (0-100) to invalidate in between Track() and Finalize()")
@@ -97,8 +98,7 @@ func main() {
 	if *chunking {
 		b = lbackend.NewReaderAtBackend(
 			chunks.NewArbitraryReadWriterAt(
-				chunks.NewChunkedReadWriterAt(
-					b, *chunkSize, *size / *chunkSize),
+				b,
 				*chunkSize,
 			),
 			(b).Size,
@@ -117,7 +117,8 @@ func main() {
 			b,
 
 			&migration.SeederOptions{
-				ChunkSize: *chunkSize,
+				ChunkSize:    *chunkSize,
+				MaxChunkSize: *maxChunkSize,
 
 				Verbose: *verbose,
 			},

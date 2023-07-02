@@ -39,6 +39,10 @@ func NewSeeder(
 	close func() error,
 	maxChunkSize int64,
 ) *Seeder {
+	if maxChunkSize <= 0 {
+		maxChunkSize = MaxChunkSize
+	}
+
 	return &Seeder{b, verbose, track, sync, close, maxChunkSize}
 }
 

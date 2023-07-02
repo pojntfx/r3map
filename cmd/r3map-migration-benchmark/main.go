@@ -69,7 +69,7 @@ func main() {
 		),
 	)
 	localLocation := flag.String("local-backend-location", filepath.Join(os.TempDir(), "local"), "Local backend's directory (for directory backend)")
-	localChunking := flag.Bool("local-backend-chunking", true, "Whether the local backend requires to be interfaced with in fixed chunks in tests")
+	localChunking := flag.Bool("local-backend-chunking", false, "Whether the local backend requires to be interfaced with in fixed chunks")
 
 	remoteBackend := flag.String(
 		"remote-backend",
@@ -80,7 +80,7 @@ func main() {
 		),
 	)
 	remoteLocation := flag.String("remote-backend-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's directory (for directory backend)")
-	remoteChunking := flag.Bool("remote-backend-chunking", true, "Whether the remote backend requires to be interfaced with in fixed chunks in tests")
+	remoteChunking := flag.Bool("remote-backend-chunking", false, "Whether the remote backend requires to be interfaced with in fixed chunks")
 
 	outputBackend := flag.String(
 		"output-backend",
@@ -91,7 +91,7 @@ func main() {
 		),
 	)
 	outputLocation := flag.String("output-backend-location", filepath.Join(os.TempDir(), "output"), "Output backend's or directory (for directory backend)")
-	outputChunking := flag.Bool("output-backend-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks in tests")
+	outputChunking := flag.Bool("output-backend-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks")
 
 	seeder := flag.String(
 		"seeder",
@@ -115,37 +115,29 @@ func main() {
 	defer cancel()
 
 	var (
-		local backend.Backend
-		l     backend.Backend
-
+		local  backend.Backend
 		remote backend.Backend
-		r      backend.Backend
-
 		output backend.Backend
 	)
 	for _, config := range []struct {
-		backendInstance              *backend.Backend
-		backendTestInstance          *backend.Backend
-		backendType                  string
-		backendLocation              string
-		testInstanceRequiresChunking bool
+		backendInstance *backend.Backend
+		backendType     string
+		backendLocation string
+		chunking        bool
 	}{
 		{
-			&l,
 			&local,
 			*localBackend,
 			*localLocation,
 			*localChunking,
 		},
 		{
-			&r,
 			&remote,
 			*remoteBackend,
 			*remoteLocation,
 			*remoteChunking,
 		},
 		{
-			&output,
 			&output,
 			*outputBackend,
 			*outputLocation,
@@ -180,19 +172,16 @@ func main() {
 			panic(errUnknownBackend)
 		}
 
-		if config.testInstanceRequiresChunking {
-			*config.backendTestInstance = lbackend.NewReaderAtBackend(
+		if config.chunking {
+			*config.backendInstance = lbackend.NewReaderAtBackend(
 				chunks.NewArbitraryReadWriterAt(
-					chunks.NewChunkedReadWriterAt(
-						*config.backendInstance, *chunkSize, *s / *chunkSize),
+					*config.backendInstance,
 					*chunkSize,
 				),
 				(*config.backendInstance).Size,
 				(*config.backendInstance).Sync,
 				false,
 			)
-		} else {
-			*config.backendTestInstance = *config.backendInstance
 		}
 	}
 
@@ -387,7 +376,7 @@ func main() {
 		}
 
 	case "":
-		seederBackend = r
+		seederBackend = remote
 
 		var svc *services.Seeder
 		if *slice {
@@ -541,7 +530,7 @@ func main() {
 		leecher := migration.NewSliceLeecher(
 			ctx,
 
-			l,
+			local,
 			peer,
 
 			&migration.LeecherOptions{
@@ -639,7 +628,7 @@ func main() {
 		leecher := migration.NewFileLeecher(
 			ctx,
 
-			l,
+			local,
 			peer,
 
 			&migration.LeecherOptions{
@@ -754,7 +743,7 @@ func main() {
 		if _, err := io.Copy(
 			leecherHash,
 			io.NewSectionReader(
-				l,
+				local,
 				0,
 				size,
 			),

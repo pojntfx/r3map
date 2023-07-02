@@ -42,7 +42,7 @@ func main() {
 
 	size := flag.Int64("size", 4096*8192, "Size of the memory region or file to allocate")
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
-	maxChunkSize := flag.Int64("max-size", services.MaxChunkSize, "Maximum chunk size to support")
+	maxChunkSize := flag.Int64("max-chunk-size", services.MaxChunkSize, "Maximum chunk size to support")
 	bck := flag.String(
 		"backend",
 		backendTypeFile,
@@ -52,7 +52,7 @@ func main() {
 		),
 	)
 	location := flag.String("location", filepath.Join(os.TempDir(), "local"), "Backend's directory (for directory backend)")
-	chunking := flag.Bool("chunking", true, "Whether the backend requires to be interfaced with in fixed chunks in tests")
+	chunking := flag.Bool("chunking", false, "Whether the backend requires to be interfaced with in fixed chunks")
 
 	flag.Parse()
 

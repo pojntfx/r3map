@@ -31,6 +31,10 @@ type Backend struct {
 }
 
 func NewBackend(b backend.Backend, verbose bool, maxChunkSize int64) *Backend {
+	if maxChunkSize <= 0 {
+		maxChunkSize = MaxChunkSize
+	}
+
 	return &Backend{b, verbose, maxChunkSize}
 }
 

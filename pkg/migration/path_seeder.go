@@ -15,7 +15,8 @@ import (
 )
 
 type SeederOptions struct {
-	ChunkSize int64
+	ChunkSize    int64
+	MaxChunkSize int64
 
 	Verbose bool
 }
@@ -106,11 +107,7 @@ func (s *PathSeeder) Open() (string, int64, *services.Seeder, error) {
 
 	b := bbackend.NewReaderAtBackend(
 		chunks.NewArbitraryReadWriterAt(
-			chunks.NewChunkedReadWriterAt(
-				tr,
-				s.options.ChunkSize,
-				size/s.options.ChunkSize,
-			),
+			tr,
 			s.options.ChunkSize,
 		),
 		s.local.Size,
@@ -171,7 +168,7 @@ func (s *PathSeeder) Open() (string, int64, *services.Seeder, error) {
 
 				return nil
 			},
-			s.options.ChunkSize,
+			s.options.MaxChunkSize,
 		),
 		nil
 }

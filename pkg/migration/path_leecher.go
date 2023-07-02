@@ -171,10 +171,9 @@ func (l *PathLeecher) Open() (int64, error) {
 	}
 
 	chunkCount := size / l.options.ChunkSize
-	local := chunks.NewChunkedReadWriterAt(l.local, l.options.ChunkSize, chunkCount)
 
 	hook := l.hooks.OnChunkIsLocal
-	l.syncedReadWriter = chunks.NewSyncedReadWriterAt(&rpcReaderAt{l.ctx, l.remote}, local, func(off int64) error {
+	l.syncedReadWriter = chunks.NewSyncedReadWriterAt(&rpcReaderAt{l.ctx, l.remote}, l.local, func(off int64) error {
 		if hook != nil {
 			return hook(off)
 		}
