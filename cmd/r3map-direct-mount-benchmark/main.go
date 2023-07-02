@@ -93,21 +93,18 @@ func main() {
 		output backend.Backend
 	)
 	for _, config := range []struct {
-		backendInstance              *backend.Backend
-		backendTestInstance          *backend.Backend
-		backendType                  string
-		backendLocation              string
-		testInstanceRequiresChunking bool
+		backendInstance *backend.Backend
+		backendType     string
+		backendLocation string
+		chunking        bool
 	}{
 		{
-			&remote,
 			&remote,
 			*remoteBackend,
 			*remoteLocation,
 			*remoteChunking,
 		},
 		{
-			&output,
 			&output,
 			*outputBackend,
 			*outputLocation,
@@ -404,19 +401,16 @@ func main() {
 			panic(errUnknownBackend)
 		}
 
-		if config.testInstanceRequiresChunking {
-			*config.backendTestInstance = lbackend.NewReaderAtBackend(
+		if config.chunking {
+			*config.backendInstance = lbackend.NewReaderAtBackend(
 				chunks.NewArbitraryReadWriterAt(
-					chunks.NewChunkedReadWriterAt(
-						*config.backendInstance, *chunkSize, *s / *chunkSize),
+					*config.backendInstance,
 					*chunkSize,
 				),
 				(*config.backendInstance).Size,
 				(*config.backendInstance).Sync,
 				false,
 			)
-		} else {
-			*config.backendTestInstance = *config.backendInstance
 		}
 	}
 

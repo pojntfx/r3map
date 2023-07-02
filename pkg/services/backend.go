@@ -7,6 +7,10 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/backend"
 )
 
+const (
+	MaxChunkSize = 32 * 1024 * 1024 // 32MB; this is theoretically the maximum size a single NBD packet can be, but realistically this will always be <32kB (which is what Go's internal `io.Copy` uses as it's buffer size)
+)
+
 type BackendRemote struct {
 	ReadAt  func(context context.Context, length int, off int64) (r ReadAtResponse, err error)
 	WriteAt func(context context.Context, p []byte, off int64) (n int, err error)
@@ -23,11 +27,11 @@ type Backend struct {
 	b       backend.Backend
 	verbose bool
 
-	maxLength int64
+	maxChunkSize int64
 }
 
-func NewBackend(b backend.Backend, verbose bool, maxLength int64) *Backend {
-	return &Backend{b, verbose, maxLength}
+func NewBackend(b backend.Backend, verbose bool, maxChunkSize int64) *Backend {
+	return &Backend{b, verbose, maxChunkSize}
 }
 
 func (b *Backend) ReadAt(context context.Context, length int, off int64) (r ReadAtResponse, err error) {
@@ -35,8 +39,8 @@ func (b *Backend) ReadAt(context context.Context, length int, off int64) (r Read
 		log.Printf("ReadAt(len(p) = %v, off = %v)", length, off)
 	}
 
-	if int64(length) > b.maxLength {
-		return ReadAtResponse{}, ErrMaxLengthExceeded
+	if int64(length) > b.maxChunkSize {
+		return ReadAtResponse{}, ErrMaxChunkSizeExceeded
 	}
 
 	r = ReadAtResponse{

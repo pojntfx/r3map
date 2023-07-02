@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ErrMaxLengthExceeded = errors.New("max length exceeded")
+	ErrMaxChunkSizeExceeded = errors.New("max chunk size exceeded")
 )
 
 type SeederRemote struct {
@@ -28,7 +28,7 @@ type Seeder struct {
 	sync  func() ([]int64, error)
 	close func() error
 
-	maxLength int64
+	maxChunkSize int64
 }
 
 func NewSeeder(
@@ -37,9 +37,9 @@ func NewSeeder(
 	track func() error,
 	sync func() ([]int64, error),
 	close func() error,
-	maxLength int64,
+	maxChunkSize int64,
 ) *Seeder {
-	return &Seeder{b, verbose, track, sync, close, maxLength}
+	return &Seeder{b, verbose, track, sync, close, maxChunkSize}
 }
 
 func (b *Seeder) ReadAt(context context.Context, length int, off int64) (r ReadAtResponse, err error) {
@@ -47,8 +47,8 @@ func (b *Seeder) ReadAt(context context.Context, length int, off int64) (r ReadA
 		log.Printf("ReadAt(len(p) = %v, off = %v)", length, off)
 	}
 
-	if int64(length) > b.maxLength {
-		return ReadAtResponse{}, ErrMaxLengthExceeded
+	if int64(length) > b.maxChunkSize {
+		return ReadAtResponse{}, ErrMaxChunkSizeExceeded
 	}
 
 	r = ReadAtResponse{

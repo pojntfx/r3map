@@ -42,6 +42,7 @@ func main() {
 
 	size := flag.Int64("size", 4096*8192, "Size of the memory region or file to allocate")
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
+	maxChunkSize := flag.Int64("max-size", services.MaxChunkSize, "Maximum chunk size to support")
 	bck := flag.String(
 		"backend",
 		backendTypeFile,
@@ -89,8 +90,7 @@ func main() {
 	if *chunking {
 		b = lbackend.NewReaderAtBackend(
 			chunks.NewArbitraryReadWriterAt(
-				chunks.NewChunkedReadWriterAt(
-					b, *chunkSize, *size / *chunkSize),
+				b,
 				*chunkSize,
 			),
 			(b).Size,
@@ -100,7 +100,7 @@ func main() {
 	}
 
 	var (
-		svc  = services.NewBackend(b, *verbose, *chunkSize)
+		svc  = services.NewBackend(b, *verbose, *maxChunkSize)
 		errs = make(chan error)
 	)
 	if *enableGrpc {
