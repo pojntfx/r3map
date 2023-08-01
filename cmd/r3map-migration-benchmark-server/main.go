@@ -122,6 +122,7 @@ func main() {
 
 				Verbose: *verbose,
 			},
+			nil,
 
 			nil,
 			nil,
@@ -165,10 +166,12 @@ func main() {
 			b,
 
 			&migration.SeederOptions{
-				ChunkSize: *chunkSize,
+				ChunkSize:    *chunkSize,
+				MaxChunkSize: *maxChunkSize,
 
 				Verbose: *verbose,
 			},
+			nil,
 
 			nil,
 			nil,

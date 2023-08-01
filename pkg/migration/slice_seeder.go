@@ -14,6 +14,8 @@ import (
 type SliceSeeder struct {
 	path *PathSeeder
 
+	hooks *SeederHooks
+
 	deviceFile *os.File
 
 	slice     mmap.MMap
@@ -24,22 +26,27 @@ func NewSliceSeeder(
 	local backend.Backend,
 
 	options *SeederOptions,
+	hooks *SeederHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
 ) *SliceSeeder {
-	h := &SeederHooks{}
+	if hooks == nil {
+		hooks = &SeederHooks{}
+	}
 
 	s := &SliceSeeder{
 		path: NewPathSeeder(
 			local,
 
 			options,
-			h,
+			nil,
 
 			serverOptions,
 			clientOptions,
 		),
+
+		hooks: hooks,
 	}
 
 	s.path.hooks.OnBeforeSync = s.onBeforeSync
@@ -78,31 +85,43 @@ func (s *SliceSeeder) Open() ([]byte, *services.Seeder, error) {
 	return s.slice, svc, nil
 }
 
-func (m *SliceSeeder) onBeforeSync() error {
-	m.mmapMount.Lock()
-	if m.slice != nil {
-		if err := m.slice.Flush(); err != nil {
+func (s *SliceSeeder) onBeforeSync() error {
+	if hook := s.hooks.OnBeforeSync; hook != nil {
+		if err := hook(); err != nil {
 			return err
 		}
 	}
-	m.mmapMount.Unlock()
+
+	s.mmapMount.Lock()
+	if s.slice != nil {
+		if err := s.slice.Flush(); err != nil {
+			return err
+		}
+	}
+	s.mmapMount.Unlock()
 
 	return nil
 }
 
-func (m *SliceSeeder) onBeforeClose() error {
-	m.mmapMount.Lock()
-	if m.slice != nil {
-		_ = m.slice.Unlock()
-
-		_ = m.slice.Unmap()
-
-		m.slice = nil
+func (s *SliceSeeder) onBeforeClose() error {
+	if hook := s.hooks.OnBeforeClose; hook != nil {
+		if err := hook(); err != nil {
+			return err
+		}
 	}
-	m.mmapMount.Unlock()
 
-	if m.deviceFile != nil {
-		_ = m.deviceFile.Close()
+	s.mmapMount.Lock()
+	if s.slice != nil {
+		_ = s.slice.Unlock()
+
+		_ = s.slice.Unmap()
+
+		s.slice = nil
+	}
+	s.mmapMount.Unlock()
+
+	if s.deviceFile != nil {
+		_ = s.deviceFile.Close()
 	}
 
 	return nil

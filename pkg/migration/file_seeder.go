@@ -12,6 +12,8 @@ import (
 type FileSeeder struct {
 	path *PathSeeder
 
+	hooks *SeederHooks
+
 	deviceFile *os.File
 }
 
@@ -19,10 +21,15 @@ func NewFileSeeder(
 	local backend.Backend,
 
 	options *SeederOptions,
+	hooks *SeederHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
 ) *FileSeeder {
+	if hooks == nil {
+		hooks = &SeederHooks{}
+	}
+
 	s := &FileSeeder{
 		path: NewPathSeeder(
 			local,
@@ -33,6 +40,8 @@ func NewFileSeeder(
 			serverOptions,
 			clientOptions,
 		),
+
+		hooks: hooks,
 	}
 
 	s.path.hooks.OnBeforeSync = s.onBeforeSync
@@ -61,6 +70,12 @@ func (s *FileSeeder) Open() (*os.File, *services.Seeder, error) {
 }
 
 func (s *FileSeeder) onBeforeSync() error {
+	if hook := s.hooks.OnBeforeSync; hook != nil {
+		if err := hook(); err != nil {
+			return err
+		}
+	}
+
 	if s.deviceFile != nil {
 		if err := s.deviceFile.Sync(); err != nil {
 			return err
@@ -71,6 +86,12 @@ func (s *FileSeeder) onBeforeSync() error {
 }
 
 func (s *FileSeeder) onBeforeClose() error {
+	if hook := s.hooks.OnBeforeClose; hook != nil {
+		if err := hook(); err != nil {
+			return err
+		}
+	}
+
 	if s.deviceFile != nil {
 		_ = s.deviceFile.Close()
 
