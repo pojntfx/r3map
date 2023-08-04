@@ -225,6 +225,7 @@ func (l *PathLeecher) Open() (int64, error) {
 	l.lockableReadWriterAt = chunks.NewLockableReadWriterAt(
 		chunks.NewArbitraryReadWriterAt(l.syncedReadWriter, l.options.ChunkSize),
 	)
+	l.lockableReadWriterAt.Lock()
 
 	l.syncer = bbackend.NewReaderAtBackend(
 		l.lockableReadWriterAt,

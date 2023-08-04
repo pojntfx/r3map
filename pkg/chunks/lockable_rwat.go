@@ -12,7 +12,7 @@ func NewLockableReadWriterAt(backend ReadWriterAt) *LockableReadWriterAt {
 	return &LockableReadWriterAt{
 		backend: backend,
 		lock:    sync.NewCond(&sync.Mutex{}),
-		locked:  true,
+		locked:  false,
 	}
 }
 
@@ -40,5 +40,11 @@ func (a *LockableReadWriterAt) Unlock() {
 	a.lock.L.Lock()
 	a.locked = false
 	a.lock.Broadcast()
+	a.lock.L.Unlock()
+}
+
+func (a *LockableReadWriterAt) Lock() {
+	a.lock.L.Lock()
+	a.locked = true
 	a.lock.L.Unlock()
 }
