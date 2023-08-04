@@ -107,6 +107,10 @@ func (l *SliceLeecher) Finalize() ([]byte, error) {
 	return l.slice, nil
 }
 
+func (l *SliceLeecher) Release() error {
+	return l.path.Release()
+}
+
 func (l *SliceLeecher) onBeforeClose() error {
 	l.mmapMount.Lock()
 	if l.slice != nil {

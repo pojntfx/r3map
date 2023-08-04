@@ -85,6 +85,10 @@ func (l *FileLeecher) Finalize() (*os.File, error) {
 	return l.deviceFile, nil
 }
 
+func (l *FileLeecher) Release() error {
+	return l.path.Release()
+}
+
 func (l *FileLeecher) onBeforeClose() error {
 	if l.deviceFile != nil {
 		_ = l.deviceFile.Close()

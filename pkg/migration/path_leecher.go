@@ -76,6 +76,11 @@ type PathLeecher struct {
 	syncer               backend.Backend
 	lockableReadWriterAt *chunks.LockableReadWriterAt
 
+	finalizedCond *sync.Cond
+	finalized     bool
+
+	pendingChunks sync.WaitGroup
+
 	wg   sync.WaitGroup
 	errs chan error
 }
@@ -126,6 +131,9 @@ func NewPathLeecher(
 		serverOptions: serverOptions,
 		clientOptions: clientOptions,
 
+		finalizedCond: sync.NewCond(&sync.Mutex{}),
+		finalized:     false,
+
 		errs: make(chan error),
 	}
 }
@@ -171,9 +179,12 @@ func (l *PathLeecher) Open() (int64, error) {
 	}
 
 	chunkCount := size / l.options.ChunkSize
+	l.pendingChunks.Add(int(chunkCount))
 
 	hook := l.hooks.OnChunkIsLocal
 	l.syncedReadWriter = chunks.NewSyncedReadWriterAt(&rpcReaderAt{l.ctx, l.remote}, l.local, func(off int64) error {
+		l.pendingChunks.Done()
+
 		if hook != nil {
 			return hook(off)
 		}
@@ -260,6 +271,8 @@ func (l *PathLeecher) Finalize() (string, error) {
 		return "", err
 	}
 
+	l.pendingChunks.Add(len(dirtyOffsets))
+
 	if hook := l.hooks.OnAfterSync; hook != nil {
 		if err := hook(dirtyOffsets); err != nil {
 			return "", err
@@ -276,7 +289,24 @@ func (l *PathLeecher) Finalize() (string, error) {
 
 	l.lockableReadWriterAt.Unlock()
 
+	l.finalizedCond.L.Lock()
+	l.finalized = true
+	l.finalizedCond.Broadcast()
+	l.finalizedCond.L.Unlock()
+
 	return l.devicePath, nil
+}
+
+func (l *PathLeecher) Release() error {
+	l.finalizedCond.L.Lock()
+	if !l.finalized {
+		l.finalizedCond.Wait()
+	}
+	l.finalizedCond.L.Unlock()
+
+	l.pendingChunks.Wait()
+
+	return nil
 }
 
 func (l *PathLeecher) Close() error {

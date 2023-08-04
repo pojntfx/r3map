@@ -146,13 +146,13 @@ func main() {
 
 	bar.Add64(*chunkSize)
 
-	leecherErrs := make(chan error)
+	errs := make(chan error)
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
-		for err := range leecherErrs {
+		for err := range errs {
 			if err != nil {
 				panic(err)
 			}
@@ -199,12 +199,12 @@ func main() {
 
 	go func() {
 		if err := leecher.Wait(); err != nil {
-			leecherErrs <- err
+			errs <- err
 
 			return
 		}
 
-		close(leecherErrs)
+		close(errs)
 	}()
 
 	beforeOpen := time.Now()
@@ -246,4 +246,8 @@ func main() {
 	throughputMB := float64(*size) / (1024 * 1024) / afterRead.Seconds()
 
 	fmt.Printf("Read throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
+
+	if err := leecher.Release(); err != nil {
+		panic(err)
+	}
 }
