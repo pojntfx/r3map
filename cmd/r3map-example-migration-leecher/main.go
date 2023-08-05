@@ -3,10 +3,13 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"math"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -15,20 +18,24 @@ import (
 	v1proto "github.com/pojntfx/r3map/pkg/api/proto/migration/v1"
 	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/services"
+	"github.com/pojntfx/r3map/pkg/utils"
 	"github.com/schollz/progressbar/v3"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
+	raddr := flag.String("raddr", "localhost:1337", "Remote address")
+	laddr := flag.String("laddr", ":1337", "Listen address")
+	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
+
 	size := flag.Int64("size", 671088640, "Size of the memory region, file to allocate or to size assume in case of the dudirekta/gRPC/fRPC remotes")
 	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
+	maxChunkSize := flag.Int64("max-chunk-size", services.MaxChunkSize, "Maximum chunk size to support")
 
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")
 
-	raddr := flag.String("raddr", "localhost:1337", "Remote address")
-
-	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
+	invalidate := flag.Int("invalidate", 0, "Percentage of chunks (0-100) to invalidate in between Track() and Finalize()")
 
 	flag.Parse()
 
@@ -50,28 +57,11 @@ func main() {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	seederErrs := make(chan error)
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		for err := range seederErrs {
-			if err != nil {
-				panic(err)
-			}
-		}
-	}()
-
 	conn, err := grpc.Dial(*raddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}
-	defer func() {
-		_ = conn.Close()
-
-		close(seederErrs)
-	}()
+	defer conn.Close()
 
 	client := v1proto.NewSeederClient(conn)
 
@@ -146,19 +136,6 @@ func main() {
 
 	bar.Add64(*chunkSize)
 
-	errs := make(chan error)
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		for err := range errs {
-			if err != nil {
-				panic(err)
-			}
-		}
-	}()
-
 	leecher := migration.NewFileLeecher(
 		ctx,
 
@@ -197,6 +174,20 @@ func main() {
 		nil,
 	)
 
+	errs := make(chan error)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for err := range errs {
+			if err != nil {
+				panic(err)
+			}
+		}
+	}()
+
+	released := false
 	go func() {
 		if err := leecher.Wait(); err != nil {
 			errs <- err
@@ -204,7 +195,9 @@ func main() {
 			return
 		}
 
-		close(errs)
+		if !released {
+			close(errs)
+		}
 	}()
 
 	beforeOpen := time.Now()
@@ -247,7 +240,105 @@ func main() {
 
 	fmt.Printf("Read throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
 
-	if err := leecher.Release(); err != nil {
+	releasedDev, releasedErrs, releasedWg, releasedDevicePath := leecher.Release()
+
+	released = true
+	if err := leecher.Close(); err != nil {
 		panic(err)
 	}
+
+	seeder := migration.NewFileSeederFromLeecher(
+		local,
+
+		&migration.SeederOptions{
+			ChunkSize:    *chunkSize,
+			MaxChunkSize: *maxChunkSize,
+
+			Verbose: *verbose,
+		},
+		&migration.SeederHooks{
+			OnBeforeSync: func() error {
+				log.Println("Suspending app")
+
+				return nil
+			},
+			OnBeforeClose: func() error {
+				log.Println("Stopping app")
+
+				return nil
+			},
+		},
+
+		releasedDev,
+		releasedErrs,
+		releasedWg,
+		releasedDevicePath,
+
+		deviceFile,
+	)
+
+	go func() {
+		if err := seeder.Wait(); err != nil {
+			errs <- err
+
+			return
+		}
+
+		close(errs)
+	}()
+
+	defer seeder.Close()
+	deviceFile, svc, err := seeder.Open()
+	if err != nil {
+		panic(err)
+	}
+
+	log.Println("Connected on", deviceFile.Name())
+
+	server := grpc.NewServer()
+
+	v1proto.RegisterSeederServer(server, services.NewSeederGrpc(svc))
+
+	lis, err := net.Listen("tcp", *laddr)
+	if err != nil {
+		panic(err)
+	}
+	defer lis.Close()
+
+	log.Println("Listening on", lis.Addr())
+
+	go func() {
+		if err := server.Serve(lis); err != nil {
+			if !utils.IsClosedErr(err) {
+				errs <- err
+			}
+
+			return
+		}
+	}()
+
+	go func() {
+		log.Println("Press <ENTER> to invalidate")
+
+		bufio.NewScanner(os.Stdin).Scan()
+
+		beforeInvalidate := time.Now()
+		if _, err := io.CopyN(
+			deviceFile,
+			rand.Reader,
+			int64(math.Floor(
+				float64(*size)*(float64(*invalidate)/float64(100)),
+			)),
+		); err != nil {
+			errs <- err
+
+			return
+		}
+
+		afterInvalidate := time.Since(beforeInvalidate)
+
+		fmt.Printf("Invalidate: %v\n", afterInvalidate)
+	}()
+
+	wg.Wait()
 }
