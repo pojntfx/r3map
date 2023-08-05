@@ -288,7 +288,7 @@ func main() {
 	}()
 
 	defer seeder.Close()
-	deviceFile, svc, err := seeder.Open()
+	_, svc, err := seeder.Open()
 	if err != nil {
 		panic(err)
 	}
@@ -321,6 +321,10 @@ func main() {
 		log.Println("Press <ENTER> to invalidate")
 
 		bufio.NewScanner(os.Stdin).Scan()
+
+		if _, err := deviceFile.Seek(0, io.SeekStart); err != nil {
+			panic(err)
+		}
 
 		beforeInvalidate := time.Now()
 		if _, err := io.CopyN(

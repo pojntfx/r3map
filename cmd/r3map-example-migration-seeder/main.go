@@ -116,6 +116,10 @@ func main() {
 
 		bufio.NewScanner(os.Stdin).Scan()
 
+		if _, err := deviceFile.Seek(0, io.SeekStart); err != nil {
+			panic(err)
+		}
+
 		beforeInvalidate := time.Now()
 		if _, err := io.CopyN(
 			deviceFile,
