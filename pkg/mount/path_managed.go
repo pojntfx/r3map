@@ -279,9 +279,11 @@ func (m *ManagedPathMount) Close() error {
 		_ = m.syncer.Sync()
 	}
 
-	if hook := m.hooks.OnBeforeClose; hook != nil {
-		if err := hook(); err != nil {
-			return err
+	if m.errs != nil { // Don't call close hook multiple times
+		if hook := m.hooks.OnBeforeClose; hook != nil {
+			if err := hook(); err != nil {
+				return err
+			}
 		}
 	}
 

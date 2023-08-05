@@ -174,9 +174,11 @@ func (s *PathSeeder) Open() (string, int64, *services.Seeder, error) {
 }
 
 func (s *PathSeeder) Close() error {
-	if hook := s.hooks.OnBeforeClose; hook != nil {
-		if err := hook(); err != nil {
-			return err
+	if s.errs != nil { // Don't call close hook multiple times
+		if hook := s.hooks.OnBeforeClose; hook != nil {
+			if err := hook(); err != nil {
+				return err
+			}
 		}
 	}
 
