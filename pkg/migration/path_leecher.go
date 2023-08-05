@@ -81,8 +81,13 @@ type PathLeecher struct {
 
 	pendingChunks sync.WaitGroup
 
-	wg   sync.WaitGroup
-	errs chan error
+	released          bool
+	releasedCtx       context.Context
+	releasedCtxCancel context.CancelFunc
+
+	pullerWg sync.WaitGroup
+	devWg    *sync.WaitGroup
+	errs     chan error
 }
 
 func NewPathLeecher(
@@ -119,6 +124,8 @@ func NewPathLeecher(
 		hooks = &LeecherHooks{}
 	}
 
+	releasedCtx, cancel := context.WithCancel(context.Background())
+
 	return &PathLeecher{
 		ctx: ctx,
 
@@ -134,18 +141,29 @@ func NewPathLeecher(
 		finalizedCond: sync.NewCond(&sync.Mutex{}),
 		finalized:     false,
 
-		errs: make(chan error),
+		releasedCtx:       releasedCtx,
+		releasedCtxCancel: cancel,
+
+		devWg: &sync.WaitGroup{},
+		errs:  make(chan error),
 	}
 }
 
 func (l *PathLeecher) Wait() error {
-	for err := range l.errs {
-		if err != nil {
+	for {
+		select {
+		case err, ok := <-l.errs:
+			if !ok {
+				return nil
+			}
+
 			return err
+
+		case <-l.releasedCtx.Done():
+			// Don't continue handling errors for the device here
+			return nil
 		}
 	}
-
-	return nil
 }
 
 func (l *PathLeecher) Open() (int64, error) {
@@ -202,9 +220,9 @@ func (l *PathLeecher) Open() (int64, error) {
 		},
 	)
 
-	l.wg.Add(1)
+	l.pullerWg.Add(1)
 	go func() {
-		defer l.wg.Done()
+		defer l.pullerWg.Done()
 
 		if err := l.puller.Wait(); err != nil {
 			l.errs <- err
@@ -248,9 +266,9 @@ func (l *PathLeecher) Open() (int64, error) {
 		l.clientOptions,
 	)
 
-	l.wg.Add(1)
+	l.devWg.Add(1)
 	go func() {
-		defer l.wg.Done()
+		defer l.devWg.Done()
 
 		if err := l.dev.Wait(); err != nil {
 			l.errs <- err
@@ -298,7 +316,12 @@ func (l *PathLeecher) Finalize() (string, error) {
 	return l.devicePath, nil
 }
 
-func (l *PathLeecher) Release() error {
+func (l *PathLeecher) Release() (
+	*mount.DirectPathMount,
+	chan error,
+	*sync.WaitGroup,
+	string,
+) {
 	l.finalizedCond.L.Lock()
 	if !l.finalized {
 		l.finalizedCond.Wait()
@@ -307,17 +330,25 @@ func (l *PathLeecher) Release() error {
 
 	l.pendingChunks.Wait()
 
-	return nil
+	l.dev.SwapBackend(l.local)
+
+	l.releasedCtxCancel()
+
+	l.released = true
+
+	return l.dev, l.errs, l.devWg, l.devicePath
 }
 
 func (l *PathLeecher) Close() error {
-	if hook := l.hooks.OnBeforeClose; hook != nil {
-		if err := hook(); err != nil {
-			return err
+	if !l.released {
+		if hook := l.hooks.OnBeforeClose; hook != nil {
+			if err := hook(); err != nil {
+				return err
+			}
 		}
 	}
 
-	if l.dev != nil {
+	if !l.released && l.dev != nil {
 		_ = l.dev.Close()
 	}
 
@@ -325,15 +356,19 @@ func (l *PathLeecher) Close() error {
 		_ = l.puller.Close()
 	}
 
-	if l.serverFile != nil {
+	if !l.released && l.serverFile != nil {
 		_ = l.serverFile.Close()
 	}
 
 	_ = l.remote.Close(l.ctx)
 
-	l.wg.Wait()
+	l.pullerWg.Wait()
 
-	if l.errs != nil {
+	if !l.released {
+		l.devWg.Wait()
+	}
+
+	if !l.released && l.errs != nil {
 		close(l.errs)
 
 		l.errs = nil

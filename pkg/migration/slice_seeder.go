@@ -8,6 +8,7 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
 	"github.com/pojntfx/go-nbd/pkg/server"
+	"github.com/pojntfx/r3map/pkg/mount"
 	"github.com/pojntfx/r3map/pkg/services"
 )
 
@@ -56,6 +57,48 @@ func NewSliceSeeder(
 	return s
 }
 
+func NewSliceSeederFromLeecher(
+	local backend.Backend,
+
+	options *SeederOptions,
+	hooks *SeederHooks,
+
+	dev *mount.DirectPathMount,
+	errs chan error,
+	wg *sync.WaitGroup,
+	devicePath string,
+
+	deviceSlice []byte,
+) *SliceSeeder {
+	if hooks == nil {
+		hooks = &SeederHooks{}
+	}
+
+	s := &SliceSeeder{
+		path: NewPathSeederFromLeecher(
+			local,
+
+			options,
+			nil,
+
+			dev,
+			errs,
+			wg,
+			devicePath,
+		),
+
+		hooks: hooks,
+
+		slice: deviceSlice,
+	}
+
+	s.path.hooks.OnBeforeSync = s.onBeforeSync
+
+	s.path.hooks.OnBeforeClose = s.onBeforeClose
+
+	return s
+}
+
 func (s *SliceSeeder) Wait() error {
 	return s.path.Wait()
 }
@@ -66,20 +109,22 @@ func (s *SliceSeeder) Open() ([]byte, *services.Seeder, error) {
 		return []byte{}, nil, err
 	}
 
-	s.deviceFile, err = os.OpenFile(devicePath, os.O_RDWR, os.ModePerm)
-	if err != nil {
-		return []byte{}, nil, err
-	}
+	if s.deviceFile == nil {
+		s.deviceFile, err = os.OpenFile(devicePath, os.O_RDWR, os.ModePerm)
+		if err != nil {
+			return []byte{}, nil, err
+		}
 
-	s.slice, err = mmap.MapRegion(s.deviceFile, int(size), mmap.RDWR, 0, 0)
-	if err != nil {
-		return []byte{}, nil, err
-	}
+		s.slice, err = mmap.MapRegion(s.deviceFile, int(size), mmap.RDWR, 0, 0)
+		if err != nil {
+			return []byte{}, nil, err
+		}
 
-	// We _MUST_ lock this slice so that it does not get paged out
-	// If it does, the Go GC tries to manage it, deadlocking _the entire runtime_
-	if err := s.slice.Lock(); err != nil {
-		return []byte{}, nil, err
+		// We _MUST_ lock this slice so that it does not get paged out
+		// If it does, the Go GC tries to manage it, deadlocking _the entire runtime_
+		if err := s.slice.Lock(); err != nil {
+			return []byte{}, nil, err
+		}
 	}
 
 	return s.slice, svc, nil

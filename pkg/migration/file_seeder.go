@@ -2,10 +2,12 @@ package migration
 
 import (
 	"os"
+	"sync"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
 	"github.com/pojntfx/go-nbd/pkg/server"
+	"github.com/pojntfx/r3map/pkg/mount"
 	"github.com/pojntfx/r3map/pkg/services"
 )
 
@@ -51,6 +53,48 @@ func NewFileSeeder(
 	return s
 }
 
+func NewFileSeederFromLeecher(
+	local backend.Backend,
+
+	options *SeederOptions,
+	hooks *SeederHooks,
+
+	dev *mount.DirectPathMount,
+	errs chan error,
+	wg *sync.WaitGroup,
+	devicePath string,
+
+	deviceFile *os.File,
+) *FileSeeder {
+	if hooks == nil {
+		hooks = &SeederHooks{}
+	}
+
+	s := &FileSeeder{
+		path: NewPathSeederFromLeecher(
+			local,
+
+			options,
+			nil,
+
+			dev,
+			errs,
+			wg,
+			devicePath,
+		),
+
+		hooks: hooks,
+
+		deviceFile: deviceFile,
+	}
+
+	s.path.hooks.OnBeforeSync = s.onBeforeSync
+
+	s.path.hooks.OnBeforeClose = s.onBeforeClose
+
+	return s
+}
+
 func (s *FileSeeder) Wait() error {
 	return s.path.Wait()
 }
@@ -61,9 +105,11 @@ func (s *FileSeeder) Open() (*os.File, *services.Seeder, error) {
 		return nil, nil, err
 	}
 
-	s.deviceFile, err = os.OpenFile(devicePath, os.O_RDWR, os.ModePerm)
-	if err != nil {
-		return nil, nil, err
+	if s.deviceFile == nil {
+		s.deviceFile, err = os.OpenFile(devicePath, os.O_RDWR, os.ModePerm)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return s.deviceFile, svc, nil

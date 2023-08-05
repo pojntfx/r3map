@@ -3,10 +3,12 @@ package migration
 import (
 	"context"
 	"os"
+	"sync"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
 	"github.com/pojntfx/go-nbd/pkg/server"
+	"github.com/pojntfx/r3map/pkg/mount"
 	"github.com/pojntfx/r3map/pkg/services"
 )
 
@@ -20,6 +22,8 @@ type FileLeecher struct {
 	path *PathLeecher
 
 	deviceFile *os.File
+
+	released bool
 }
 
 func NewFileLeecher(
@@ -85,12 +89,19 @@ func (l *FileLeecher) Finalize() (*os.File, error) {
 	return l.deviceFile, nil
 }
 
-func (l *FileLeecher) Release() error {
+func (l *FileLeecher) Release() (
+	*mount.DirectPathMount,
+	chan error,
+	*sync.WaitGroup,
+	string,
+) {
+	l.released = true
+
 	return l.path.Release()
 }
 
 func (l *FileLeecher) onBeforeClose() error {
-	if l.deviceFile != nil {
+	if !l.released && l.deviceFile != nil {
 		_ = l.deviceFile.Close()
 	}
 

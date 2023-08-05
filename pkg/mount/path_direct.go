@@ -158,3 +158,7 @@ func (d *DirectPathMount) Close() error {
 func (d *DirectPathMount) Sync() error {
 	return nil
 }
+
+func (d *DirectPathMount) SwapBackend(b backend.Backend) {
+	d.b = b
+}

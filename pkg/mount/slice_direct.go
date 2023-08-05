@@ -109,3 +109,7 @@ func (d *DirectSliceMount) Sync() error {
 
 	return d.path.Sync()
 }
+
+func (d *DirectSliceMount) SwapBackend(b backend.Backend) {
+	d.path.b = b
+}

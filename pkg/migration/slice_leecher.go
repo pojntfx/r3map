@@ -9,6 +9,7 @@ import (
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
 	"github.com/pojntfx/go-nbd/pkg/server"
+	"github.com/pojntfx/r3map/pkg/mount"
 	"github.com/pojntfx/r3map/pkg/services"
 )
 
@@ -26,6 +27,8 @@ type SliceLeecher struct {
 	slice     mmap.MMap
 	mmapMount sync.Mutex
 	size      int64
+
+	released bool
 }
 
 func NewSliceLeecher(
@@ -107,23 +110,32 @@ func (l *SliceLeecher) Finalize() ([]byte, error) {
 	return l.slice, nil
 }
 
-func (l *SliceLeecher) Release() error {
+func (l *SliceLeecher) Release() (
+	*mount.DirectPathMount,
+	chan error,
+	*sync.WaitGroup,
+	string,
+) {
+	l.released = true
+
 	return l.path.Release()
 }
 
 func (l *SliceLeecher) onBeforeClose() error {
-	l.mmapMount.Lock()
-	if l.slice != nil {
-		_ = l.slice.Unlock()
+	if !l.released {
+		l.mmapMount.Lock()
+		if l.slice != nil {
+			_ = l.slice.Unlock()
 
-		_ = l.slice.Unmap()
+			_ = l.slice.Unmap()
 
-		l.slice = nil
-	}
-	l.mmapMount.Unlock()
+			l.slice = nil
+		}
+		l.mmapMount.Unlock()
 
-	if l.deviceFile != nil {
-		_ = l.deviceFile.Close()
+		if l.deviceFile != nil {
+			_ = l.deviceFile.Close()
+		}
 	}
 
 	return nil

@@ -74,3 +74,7 @@ func (d *DirectFileMount) Sync() error {
 
 	return d.path.Sync()
 }
+
+func (d *DirectFileMount) SwapBackend(b backend.Backend) {
+	d.path.b = b
+}

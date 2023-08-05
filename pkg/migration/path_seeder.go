@@ -39,7 +39,9 @@ type PathSeeder struct {
 	serverFile *os.File
 	dev        *mount.DirectPathMount
 
-	wg   sync.WaitGroup
+	devicePath string
+
+	wg   *sync.WaitGroup
 	errs chan error
 }
 
@@ -73,7 +75,44 @@ func NewPathSeeder(
 		serverOptions: serverOptions,
 		clientOptions: clientOptions,
 
+		wg:   &sync.WaitGroup{},
 		errs: make(chan error),
+	}
+}
+
+func NewPathSeederFromLeecher(
+	local backend.Backend,
+
+	options *SeederOptions,
+	hooks *SeederHooks,
+
+	dev *mount.DirectPathMount,
+	errs chan error,
+	wg *sync.WaitGroup,
+	devicePath string,
+) *PathSeeder {
+	if options == nil {
+		options = &SeederOptions{}
+	}
+
+	if options.ChunkSize <= 0 {
+		options.ChunkSize = 4096
+	}
+
+	if hooks == nil {
+		hooks = &SeederHooks{}
+	}
+
+	return &PathSeeder{
+		local: local,
+
+		options: options,
+		hooks:   hooks,
+
+		dev:        dev,
+		errs:       errs,
+		wg:         wg,
+		devicePath: devicePath,
 	}
 }
 
@@ -93,16 +132,6 @@ func (s *PathSeeder) Open() (string, int64, *services.Seeder, error) {
 		return "", 0, nil, err
 	}
 
-	devicePath, err := utils.FindUnusedNBDDevice()
-	if err != nil {
-		return "", 0, nil, err
-	}
-
-	s.serverFile, err = os.Open(devicePath)
-	if err != nil {
-		return "", 0, nil, err
-	}
-
 	tr := chunks.NewTrackingReadWriterAt(s.local)
 
 	b := bbackend.NewReaderAtBackend(
@@ -115,31 +144,45 @@ func (s *PathSeeder) Open() (string, int64, *services.Seeder, error) {
 		false,
 	)
 
-	s.dev = mount.NewDirectPathMount(
-		b,
-		s.serverFile,
-
-		s.serverOptions,
-		s.clientOptions,
-	)
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-
-		if err := s.dev.Wait(); err != nil {
-			s.errs <- err
-
-			return
+	if s.dev == nil {
+		s.devicePath, err = utils.FindUnusedNBDDevice()
+		if err != nil {
+			return "", 0, nil, err
 		}
-	}()
 
-	if err := s.dev.Open(); err != nil {
-		return "", 0, nil, err
+		s.serverFile, err = os.Open(s.devicePath)
+		if err != nil {
+			return "", 0, nil, err
+		}
+
+		s.dev = mount.NewDirectPathMount(
+			b,
+			s.serverFile,
+
+			s.serverOptions,
+			s.clientOptions,
+		)
+
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+
+			if err := s.dev.Wait(); err != nil {
+				s.errs <- err
+
+				return
+			}
+		}()
+
+		if err := s.dev.Open(); err != nil {
+			return "", 0, nil, err
+		}
+	} else {
+		s.dev.SwapBackend(b)
 	}
 
 	synced := false
-	return devicePath, size, services.NewSeeder(
+	return s.devicePath, size, services.NewSeeder(
 			b,
 			s.options.Verbose,
 			func() error {
