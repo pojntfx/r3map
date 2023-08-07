@@ -91,7 +91,12 @@ func (s *PathMigrator) Wait() error {
 	return nil
 }
 
-func (s *PathMigrator) Seed() (string, int64, *services.Seeder, error) {
+func (s *PathMigrator) Seed() (
+	path string,
+	size int64,
+	svc *services.Seeder,
+	err error,
+) {
 	s.seeder = NewPathSeeder(
 		s.local,
 
@@ -126,7 +131,19 @@ func (s *PathMigrator) Seed() (string, int64, *services.Seeder, error) {
 	return s.seeder.Open()
 }
 
-func (s *PathMigrator) Leech(remote *services.SeederRemote) (string, int64, *services.Seeder, error) {
+func (s *PathMigrator) Leech(
+	remote *services.SeederRemote,
+) (
+	finalize func() (
+		seed func() (*services.Seeder, error),
+
+		path string,
+		err error,
+	),
+
+	size int64,
+	err error,
+) {
 	s.leecher = NewPathLeecher(
 		s.ctx,
 
@@ -154,7 +171,7 @@ func (s *PathMigrator) Leech(remote *services.SeederRemote) (string, int64, *ser
 	)
 
 	go func() {
-		if err := s.seeder.Wait(); err != nil {
+		if err := s.leecher.Wait(); err != nil {
 			s.errs <- err
 
 			return
@@ -167,12 +184,80 @@ func (s *PathMigrator) Leech(remote *services.SeederRemote) (string, int64, *ser
 		}
 	}()
 
-	return s.seeder.Open()
+	size, err = s.leecher.Open()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return func() (
+		func() (*services.Seeder, error),
+
+		string,
+		error,
+	) {
+		path, err := s.leecher.Finalize()
+		if err != nil {
+			return nil, "", err
+		}
+
+		return func() (
+			*services.Seeder,
+			error,
+		) {
+			releasedDev, releasedErrs, releasedWg, releasedDevicePath := s.leecher.Release()
+
+			s.released = true
+			if err := s.leecher.Close(); err != nil {
+				return nil, err
+			}
+			s.leecher = nil
+
+			s.seeder = NewPathSeederFromLeecher(
+				s.local,
+
+				&SeederOptions{
+					ChunkSize:    s.options.ChunkSize,
+					MaxChunkSize: s.options.MaxChunkSize,
+
+					Verbose: s.options.Verbose,
+				},
+				&SeederHooks{
+					OnBeforeSync: s.hooks.OnBeforeSync,
+
+					OnBeforeClose: s.hooks.OnBeforeClose,
+				},
+
+				releasedDev,
+				releasedErrs,
+				releasedWg,
+				releasedDevicePath,
+			)
+
+			go func() {
+				if err := s.seeder.Wait(); err != nil {
+					s.errs <- err
+
+					return
+				}
+			}()
+
+			_, _, svc, err := s.seeder.Open()
+			if err != nil {
+				return nil, err
+			}
+
+			return svc, nil
+		}, path, err
+	}, size, err
 }
 
 func (s *PathMigrator) Close() error {
 	if s.seeder != nil {
 		_ = s.seeder.Close()
+	}
+
+	if s.leecher != nil {
+		_ = s.leecher.Close()
 	}
 
 	if s.errs != nil {
