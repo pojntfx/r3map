@@ -144,7 +144,10 @@ func (s *PathMigrator) Leech(
 	remote *services.SeederRemote,
 ) (
 	finalize func() (
-		seed func() (*services.Seeder, error),
+		seed func() (
+			svc *services.Seeder,
+			err error,
+		),
 
 		path string,
 		err error,
