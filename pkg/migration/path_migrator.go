@@ -2,11 +2,16 @@ package migration
 
 import (
 	"context"
+	"errors"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
 	"github.com/pojntfx/go-nbd/pkg/server"
 	"github.com/pojntfx/r3map/pkg/services"
+)
+
+var (
+	ErrSeedXORLeech = errors.New("can either seed or leech, but not both at the same time")
 )
 
 type MigratorOptions struct {
@@ -97,6 +102,10 @@ func (s *PathMigrator) Seed() (
 	svc *services.Seeder,
 	err error,
 ) {
+	if s.leecher != nil {
+		return "", 0, nil, ErrSeedXORLeech
+	}
+
 	s.seeder = NewPathSeeder(
 		s.local,
 
@@ -144,6 +153,10 @@ func (s *PathMigrator) Leech(
 	size int64,
 	err error,
 ) {
+	if s.seeder != nil {
+		return nil, 0, ErrSeedXORLeech
+	}
+
 	s.leecher = NewPathLeecher(
 		s.ctx,
 
@@ -239,6 +252,10 @@ func (s *PathMigrator) Leech(
 
 					return
 				}
+
+				close(s.errs)
+
+				s.errs = nil
 			}()
 
 			_, _, svc, err := s.seeder.Open()
