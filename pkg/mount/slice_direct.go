@@ -30,15 +30,13 @@ func NewDirectSliceMount(
 	clientOptions *client.Options,
 ) *DirectSliceMount {
 	return &DirectSliceMount{
-		path: &DirectPathMount{
-			b: b,
-			f: f,
+		path: NewDirectPathMount(
+			b,
+			f,
 
-			serverOptions: serverOptions,
-			clientOptions: clientOptions,
-
-			errs: make(chan error),
-		},
+			serverOptions,
+			clientOptions,
+		),
 
 		devicePath: f.Name(),
 
@@ -111,5 +109,5 @@ func (d *DirectSliceMount) Sync() error {
 }
 
 func (d *DirectSliceMount) SwapBackend(b backend.Backend) {
-	d.path.b = b
+	d.path.e.Backend = b
 }

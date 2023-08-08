@@ -12,7 +12,7 @@ import (
 )
 
 type DirectPathMount struct {
-	b backend.Backend
+	e *server.Export
 	f *os.File
 
 	serverOptions *server.Options
@@ -35,7 +35,10 @@ func NewDirectPathMount(
 	clientOptions *client.Options,
 ) *DirectPathMount {
 	return &DirectPathMount{
-		b: b,
+		e: &server.Export{
+			Name:    "default",
+			Backend: b,
+		},
 		f: f,
 
 		serverOptions: serverOptions,
@@ -75,12 +78,7 @@ func (d *DirectPathMount) Open() error {
 
 		if err := server.Handle(
 			d.sc,
-			[]server.Export{
-				{
-					Name:    "default",
-					Backend: d.b,
-				},
-			},
+			[]*server.Export{d.e},
 			d.serverOptions,
 		); err != nil {
 			if !utils.IsClosedErr(err) {
@@ -160,5 +158,5 @@ func (d *DirectPathMount) Sync() error {
 }
 
 func (d *DirectPathMount) SwapBackend(b backend.Backend) {
-	d.b = b
+	d.e.Backend = b
 }

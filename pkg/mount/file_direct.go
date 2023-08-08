@@ -23,15 +23,13 @@ func NewDirectFileMount(
 	clientOptions *client.Options,
 ) *DirectFileMount {
 	return &DirectFileMount{
-		path: &DirectPathMount{
-			b: b,
-			f: f,
+		path: NewDirectPathMount(
+			b,
+			f,
 
-			serverOptions: serverOptions,
-			clientOptions: clientOptions,
-
-			errs: make(chan error),
-		},
+			serverOptions,
+			clientOptions,
+		),
 
 		devicePath: f.Name(),
 	}
@@ -76,5 +74,5 @@ func (d *DirectFileMount) Sync() error {
 }
 
 func (d *DirectFileMount) SwapBackend(b backend.Backend) {
-	d.path.b = b
+	d.path.e.Backend = b
 }
