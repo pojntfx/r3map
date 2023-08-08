@@ -11,34 +11,27 @@ const (
 	MaxChunkSize = 32 * 1024 * 1024 // 32MB; this is theoretically the maximum size a single NBD packet can be, but realistically this will always be <32kB (which is what Go's internal `io.Copy` uses as it's buffer size)
 )
 
-type BackendRemote struct {
-	ReadAt  func(context context.Context, length int, off int64) (r ReadAtResponse, err error)
-	WriteAt func(context context.Context, p []byte, off int64) (n int, err error)
-	Size    func(context context.Context) (int64, error)
-	Sync    func(context context.Context) error
-}
-
 type ReadAtResponse struct {
 	N int
 	P []byte
 }
 
-type Backend struct {
+type BackendService struct {
 	b       backend.Backend
 	verbose bool
 
 	maxChunkSize int64
 }
 
-func NewBackend(b backend.Backend, verbose bool, maxChunkSize int64) *Backend {
+func NewBackend(b backend.Backend, verbose bool, maxChunkSize int64) *BackendService {
 	if maxChunkSize <= 0 {
 		maxChunkSize = MaxChunkSize
 	}
 
-	return &Backend{b, verbose, maxChunkSize}
+	return &BackendService{b, verbose, maxChunkSize}
 }
 
-func (b *Backend) ReadAt(context context.Context, length int, off int64) (r ReadAtResponse, err error) {
+func (b *BackendService) ReadAt(context context.Context, length int, off int64) (r ReadAtResponse, err error) {
 	if b.verbose {
 		log.Printf("ReadAt(len(p) = %v, off = %v)", length, off)
 	}
@@ -60,7 +53,7 @@ func (b *Backend) ReadAt(context context.Context, length int, off int64) (r Read
 	return
 }
 
-func (b *Backend) WriteAt(context context.Context, p []byte, off int64) (n int, err error) {
+func (b *BackendService) WriteAt(context context.Context, p []byte, off int64) (n int, err error) {
 	if b.verbose {
 		log.Printf("WriteAt(len(p) = %v, off = %v)", len(p), off)
 	}
@@ -68,7 +61,7 @@ func (b *Backend) WriteAt(context context.Context, p []byte, off int64) (n int, 
 	return b.b.WriteAt(p, off)
 }
 
-func (b *Backend) Size(context context.Context) (int64, error) {
+func (b *BackendService) Size(context context.Context) (int64, error) {
 	if b.verbose {
 		log.Println("Size()")
 	}
@@ -76,7 +69,7 @@ func (b *Backend) Size(context context.Context) (int64, error) {
 	return b.b.Size()
 }
 
-func (b *Backend) Sync(context context.Context) error {
+func (b *BackendService) Sync(context context.Context) error {
 	if b.verbose {
 		log.Println("Sync()")
 	}

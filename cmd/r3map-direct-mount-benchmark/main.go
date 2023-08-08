@@ -187,52 +187,7 @@ func main() {
 			}
 			defer conn.Close()
 
-			client := v1proto.NewBackendClient(conn)
-
-			peer := &services.BackendRemote{
-				ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
-					res, err := client.ReadAt(ctx, &v1proto.ReadAtArgs{
-						Length: int32(length),
-						Off:    off,
-					})
-					if err != nil {
-						return services.ReadAtResponse{}, err
-					}
-
-					return services.ReadAtResponse{
-						N: int(res.GetN()),
-						P: res.GetP(),
-					}, err
-				},
-				WriteAt: func(context context.Context, p []byte, off int64) (n int, err error) {
-					res, err := client.WriteAt(ctx, &v1proto.WriteAtArgs{
-						Off: off,
-						P:   p,
-					})
-					if err != nil {
-						return 0, err
-					}
-
-					return int(res.GetLength()), nil
-				},
-				Size: func(context context.Context) (int64, error) {
-					res, err := client.Size(ctx, &v1proto.SizeArgs{})
-					if err != nil {
-						return 0, err
-					}
-
-					return res.GetSize(), nil
-				},
-				Sync: func(context context.Context) error {
-					if _, err := client.Sync(ctx, &v1proto.SyncArgs{}); err != nil {
-						return err
-					}
-
-					return nil
-				},
-			}
-
-			*config.backendInstance = lbackend.NewRPCBackend(ctx, peer, *verbose)
+			*config.backendInstance = lbackend.NewRPCBackend(ctx, services.NewBackendRemoteGrpc(v1proto.NewBackendClient(conn)), *verbose)
 
 		case backendTypeFrpc:
 			client, err := v1frpc.NewClient(nil, nil)
@@ -245,50 +200,7 @@ func main() {
 			}
 			defer client.Close()
 
-			peer := &services.BackendRemote{
-				ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
-					res, err := client.Backend.ReadAt(ctx, &v1frpc.ComPojtingerFelicitasR3MapMountV1ReadAtArgs{
-						Length: int32(length),
-						Off:    off,
-					})
-					if err != nil {
-						return services.ReadAtResponse{}, err
-					}
-
-					return services.ReadAtResponse{
-						N: int(res.N),
-						P: res.P,
-					}, err
-				},
-				WriteAt: func(context context.Context, p []byte, off int64) (n int, err error) {
-					res, err := client.Backend.WriteAt(ctx, &v1frpc.ComPojtingerFelicitasR3MapMountV1WriteAtArgs{
-						Off: off,
-						P:   p,
-					})
-					if err != nil {
-						return 0, err
-					}
-
-					return int(res.Length), nil
-				},
-				Size: func(context context.Context) (int64, error) {
-					res, err := client.Backend.Size(ctx, &v1frpc.ComPojtingerFelicitasR3MapMountV1SizeArgs{})
-					if err != nil {
-						return 0, err
-					}
-
-					return res.Size, nil
-				},
-				Sync: func(context context.Context) error {
-					if _, err := client.Backend.Sync(ctx, &v1frpc.ComPojtingerFelicitasR3MapMountV1SyncArgs{}); err != nil {
-						return err
-					}
-
-					return nil
-				},
-			}
-
-			*config.backendInstance = lbackend.NewRPCBackend(ctx, peer, *verbose)
+			*config.backendInstance = lbackend.NewRPCBackend(ctx, services.NewBackendRemoteFrpc(client), *verbose)
 
 		case backendTypeRedis:
 			options, err := redis.ParseURL(config.backendLocation)

@@ -106,7 +106,7 @@ func main() {
 	if *enableGrpc {
 		server := grpc.NewServer()
 
-		v1proto.RegisterBackendServer(server, services.NewBackendGrpc(svc))
+		v1proto.RegisterBackendServer(server, services.NewBackendServiceGrpc(svc))
 
 		lis, err := net.Listen("tcp", *laddr)
 		if err != nil {
@@ -126,7 +126,7 @@ func main() {
 			}
 		}()
 	} else if *enableFrpc {
-		server, err := v1frpc.NewServer(services.NewBackendFrpc(svc), nil, nil)
+		server, err := v1frpc.NewServer(services.NewBackendServiceFrpc(svc), nil, nil)
 		if err != nil {
 			panic(err)
 		}
