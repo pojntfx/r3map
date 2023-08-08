@@ -132,9 +132,11 @@ func (s *PathMigrator) Seed() (
 			return
 		}
 
-		close(s.errs)
+		if s.errs != nil {
+			close(s.errs)
 
-		s.errs = nil
+			s.errs = nil
+		}
 	}()
 
 	return s.seeder.Open()
@@ -193,7 +195,7 @@ func (s *PathMigrator) Leech(
 			return
 		}
 
-		if !s.released {
+		if !s.released && s.errs != nil {
 			close(s.errs)
 
 			s.errs = nil
@@ -256,9 +258,11 @@ func (s *PathMigrator) Leech(
 					return
 				}
 
-				close(s.errs)
+				if s.errs != nil {
+					close(s.errs)
 
-				s.errs = nil
+					s.errs = nil
+				}
 			}()
 
 			_, _, svc, err := s.seeder.Open()
