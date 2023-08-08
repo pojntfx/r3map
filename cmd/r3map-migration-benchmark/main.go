@@ -264,54 +264,7 @@ func main() {
 			close(seederErrs)
 		}()
 
-		client := v1proto.NewSeederClient(conn)
-
-		peer = &services.SeederRemote{
-			ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
-				res, err := client.ReadAt(ctx, &v1proto.ReadAtArgs{
-					Length: int32(length),
-					Off:    off,
-				})
-				if err != nil {
-					return services.ReadAtResponse{}, err
-				}
-
-				return services.ReadAtResponse{
-					N: int(res.GetN()),
-					P: res.GetP(),
-				}, err
-			},
-			Size: func(ctx context.Context) (int64, error) {
-				res, err := client.Size(ctx, &v1proto.SizeArgs{})
-				if err != nil {
-					return -1, err
-				}
-
-				return res.GetN(), nil
-			},
-			Track: func(ctx context.Context) error {
-				if _, err := client.Track(ctx, &v1proto.TrackArgs{}); err != nil {
-					return err
-				}
-
-				return nil
-			},
-			Sync: func(ctx context.Context) ([]int64, error) {
-				res, err := client.Sync(ctx, &v1proto.SyncArgs{})
-				if err != nil {
-					return []int64{}, err
-				}
-
-				return res.GetDirtyOffsets(), nil
-			},
-			Close: func(ctx context.Context) error {
-				if _, err := client.Close(ctx, &v1proto.CloseArgs{}); err != nil {
-					return err
-				}
-
-				return nil
-			},
-		}
+		peer = services.NewLeecherGrpc(v1proto.NewSeederClient(conn))
 
 	case seederTypeFrpc:
 		client, err := v1frpc.NewClient(nil, nil)
@@ -328,52 +281,7 @@ func main() {
 			close(seederErrs)
 		}()
 
-		peer = &services.SeederRemote{
-			ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
-				res, err := client.Seeder.ReadAt(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1ReadAtArgs{
-					Length: int32(length),
-					Off:    off,
-				})
-				if err != nil {
-					return services.ReadAtResponse{}, err
-				}
-
-				return services.ReadAtResponse{
-					N: int(res.N),
-					P: res.P,
-				}, err
-			},
-			Size: func(ctx context.Context) (int64, error) {
-				res, err := client.Seeder.Size(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1SizeArgs{})
-				if err != nil {
-					return -1, err
-				}
-
-				return res.N, nil
-			},
-			Track: func(ctx context.Context) error {
-				if _, err := client.Seeder.Track(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1TrackArgs{}); err != nil {
-					return err
-				}
-
-				return nil
-			},
-			Sync: func(ctx context.Context) ([]int64, error) {
-				res, err := client.Seeder.Sync(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1SyncArgs{})
-				if err != nil {
-					return []int64{}, err
-				}
-
-				return res.DirtyOffsets, nil
-			},
-			Close: func(ctx context.Context) error {
-				if _, err := client.Seeder.Close(ctx, &v1frpc.ComPojtingerFelicitasR3MapMigrationV1CloseArgs{}); err != nil {
-					return err
-				}
-
-				return nil
-			},
-		}
+		peer = services.NewLeecherFrpc(client)
 
 	case "":
 		seederBackend = remote

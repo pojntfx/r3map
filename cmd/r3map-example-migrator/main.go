@@ -152,57 +152,8 @@ func main() {
 
 		log.Println("Connected to", *raddr)
 
-		client := v1.NewSeederClient(conn)
-
 		defer migrator.Close()
-		finalize, _, err := migrator.Leech(
-			&services.SeederRemote{
-				ReadAt: func(ctx context.Context, length int, off int64) (r services.ReadAtResponse, err error) {
-					res, err := client.ReadAt(ctx, &v1.ReadAtArgs{
-						Length: int32(length),
-						Off:    off,
-					})
-					if err != nil {
-						return services.ReadAtResponse{}, err
-					}
-
-					return services.ReadAtResponse{
-						N: int(res.GetN()),
-						P: res.GetP(),
-					}, err
-				},
-				Size: func(ctx context.Context) (int64, error) {
-					res, err := client.Size(ctx, &v1.SizeArgs{})
-					if err != nil {
-						return -1, err
-					}
-
-					return res.GetN(), nil
-				},
-				Track: func(ctx context.Context) error {
-					if _, err := client.Track(ctx, &v1.TrackArgs{}); err != nil {
-						return err
-					}
-
-					return nil
-				},
-				Sync: func(ctx context.Context) ([]int64, error) {
-					res, err := client.Sync(ctx, &v1.SyncArgs{})
-					if err != nil {
-						return []int64{}, err
-					}
-
-					return res.GetDirtyOffsets(), nil
-				},
-				Close: func(ctx context.Context) error {
-					if _, err := client.Close(ctx, &v1.CloseArgs{}); err != nil {
-						return err
-					}
-
-					return nil
-				},
-			},
-		)
+		finalize, _, err := migrator.Leech(services.NewLeecherGrpc(v1.NewSeederClient(conn)))
 		if err != nil {
 			panic(err)
 		}
