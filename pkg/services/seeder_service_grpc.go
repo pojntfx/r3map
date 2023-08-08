@@ -8,17 +8,17 @@ import (
 
 //go:generate sh -c "mkdir -p ../api/proto/migration/v1 && protoc --go_out=../api/proto/migration/v1 --go_opt=paths=source_relative --go-grpc_out=../api/proto/migration/v1 --go-grpc_opt=paths=source_relative --proto_path=../../api/proto/migration/v1 ../../api/proto/migration/v1/*.proto"
 
-type SeederGrpc struct {
+type SeederServiceGrpc struct {
 	v1.UnimplementedSeederServer
 
-	svc *Seeder
+	svc *SeederService
 }
 
-func NewSeederGrpc(svc *Seeder) *SeederGrpc {
-	return &SeederGrpc{v1.UnimplementedSeederServer{}, svc}
+func NewSeederServiceGrpc(svc *SeederService) *SeederServiceGrpc {
+	return &SeederServiceGrpc{v1.UnimplementedSeederServer{}, svc}
 }
 
-func (s *SeederGrpc) ReadAt(ctx context.Context, args *v1.ReadAtArgs) (*v1.ReadAtReply, error) {
+func (s *SeederServiceGrpc) ReadAt(ctx context.Context, args *v1.ReadAtArgs) (*v1.ReadAtReply, error) {
 	res, err := s.svc.ReadAt(ctx, int(args.GetLength()), args.GetOff())
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func (s *SeederGrpc) ReadAt(ctx context.Context, args *v1.ReadAtArgs) (*v1.ReadA
 	}, nil
 }
 
-func (s *SeederGrpc) Size(ctx context.Context, args *v1.SizeArgs) (*v1.SizeReply, error) {
+func (s *SeederServiceGrpc) Size(ctx context.Context, args *v1.SizeArgs) (*v1.SizeReply, error) {
 	size, err := s.svc.Size(ctx)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func (s *SeederGrpc) Size(ctx context.Context, args *v1.SizeArgs) (*v1.SizeReply
 	}, nil
 }
 
-func (s *SeederGrpc) Track(ctx context.Context, args *v1.TrackArgs) (*v1.TrackReply, error) {
+func (s *SeederServiceGrpc) Track(ctx context.Context, args *v1.TrackArgs) (*v1.TrackReply, error) {
 	if err := s.svc.Track(ctx); err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (s *SeederGrpc) Track(ctx context.Context, args *v1.TrackArgs) (*v1.TrackRe
 	return &v1.TrackReply{}, nil
 }
 
-func (s *SeederGrpc) Sync(ctx context.Context, args *v1.SyncArgs) (*v1.SyncReply, error) {
+func (s *SeederServiceGrpc) Sync(ctx context.Context, args *v1.SyncArgs) (*v1.SyncReply, error) {
 	dirtyOffsets, err := s.svc.Sync(ctx)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func (s *SeederGrpc) Sync(ctx context.Context, args *v1.SyncArgs) (*v1.SyncReply
 	}, nil
 }
 
-func (s *SeederGrpc) Close(ctx context.Context, args *v1.CloseArgs) (*v1.CloseReply, error) {
+func (s *SeederServiceGrpc) Close(ctx context.Context, args *v1.CloseArgs) (*v1.CloseReply, error) {
 	if err := s.svc.Close(ctx); err != nil {
 		return nil, err
 	}

@@ -99,7 +99,7 @@ func (s *FileSeeder) Wait() error {
 	return s.path.Wait()
 }
 
-func (s *FileSeeder) Open() (*os.File, *services.Seeder, error) {
+func (s *FileSeeder) Open() (*os.File, *services.SeederService, error) {
 	devicePath, _, svc, err := s.path.Open()
 	if err != nil {
 		return nil, nil, err

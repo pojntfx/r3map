@@ -6,12 +6,12 @@ import (
 	v1 "github.com/pojntfx/r3map/pkg/api/frpc/migration/v1"
 )
 
-type LeecherFrpc struct {
+type SeederRemoteFrpc struct {
 	client *v1.Client
 }
 
-func NewLeecherFrpc(client *v1.Client) *SeederRemote {
-	l := &LeecherFrpc{client}
+func NewSeederRemoteFrpc(client *v1.Client) *SeederRemote {
+	l := &SeederRemoteFrpc{client}
 
 	return &SeederRemote{
 		ReadAt: l.ReadAt,
@@ -22,7 +22,7 @@ func NewLeecherFrpc(client *v1.Client) *SeederRemote {
 	}
 }
 
-func (l *LeecherFrpc) ReadAt(ctx context.Context, length int, off int64) (r ReadAtResponse, err error) {
+func (l *SeederRemoteFrpc) ReadAt(ctx context.Context, length int, off int64) (r ReadAtResponse, err error) {
 	res, err := l.client.Seeder.ReadAt(ctx, &v1.ComPojtingerFelicitasR3MapMigrationV1ReadAtArgs{
 		Length: int32(length),
 		Off:    off,
@@ -37,7 +37,7 @@ func (l *LeecherFrpc) ReadAt(ctx context.Context, length int, off int64) (r Read
 	}, err
 }
 
-func (l *LeecherFrpc) Size(ctx context.Context) (int64, error) {
+func (l *SeederRemoteFrpc) Size(ctx context.Context) (int64, error) {
 	res, err := l.client.Seeder.Size(ctx, &v1.ComPojtingerFelicitasR3MapMigrationV1SizeArgs{})
 	if err != nil {
 		return -1, err
@@ -46,7 +46,7 @@ func (l *LeecherFrpc) Size(ctx context.Context) (int64, error) {
 	return res.N, nil
 }
 
-func (l *LeecherFrpc) Track(ctx context.Context) error {
+func (l *SeederRemoteFrpc) Track(ctx context.Context) error {
 	if _, err := l.client.Seeder.Track(ctx, &v1.ComPojtingerFelicitasR3MapMigrationV1TrackArgs{}); err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (l *LeecherFrpc) Track(ctx context.Context) error {
 	return nil
 }
 
-func (l *LeecherFrpc) Sync(ctx context.Context) ([]int64, error) {
+func (l *SeederRemoteFrpc) Sync(ctx context.Context) ([]int64, error) {
 	res, err := l.client.Seeder.Sync(ctx, &v1.ComPojtingerFelicitasR3MapMigrationV1SyncArgs{})
 	if err != nil {
 		return []int64{}, err
@@ -63,7 +63,7 @@ func (l *LeecherFrpc) Sync(ctx context.Context) ([]int64, error) {
 	return res.DirtyOffsets, nil
 }
 
-func (l *LeecherFrpc) Close(ctx context.Context) error {
+func (l *SeederRemoteFrpc) Close(ctx context.Context) error {
 	if _, err := l.client.Seeder.Close(ctx, &v1.ComPojtingerFelicitasR3MapMigrationV1CloseArgs{}); err != nil {
 		return err
 	}

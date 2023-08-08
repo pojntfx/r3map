@@ -6,12 +6,12 @@ import (
 	v1 "github.com/pojntfx/r3map/pkg/api/proto/migration/v1"
 )
 
-type LeecherGrpc struct {
+type SeederRemoteGrpc struct {
 	client v1.SeederClient
 }
 
-func NewLeecherGrpc(client v1.SeederClient) *SeederRemote {
-	l := &LeecherGrpc{client}
+func NewSeederRemoteGrpc(client v1.SeederClient) *SeederRemote {
+	l := &SeederRemoteGrpc{client}
 
 	return &SeederRemote{
 		ReadAt: l.ReadAt,
@@ -22,7 +22,7 @@ func NewLeecherGrpc(client v1.SeederClient) *SeederRemote {
 	}
 }
 
-func (l *LeecherGrpc) ReadAt(ctx context.Context, length int, off int64) (r ReadAtResponse, err error) {
+func (l *SeederRemoteGrpc) ReadAt(ctx context.Context, length int, off int64) (r ReadAtResponse, err error) {
 	res, err := l.client.ReadAt(ctx, &v1.ReadAtArgs{
 		Length: int32(length),
 		Off:    off,
@@ -37,7 +37,7 @@ func (l *LeecherGrpc) ReadAt(ctx context.Context, length int, off int64) (r Read
 	}, err
 }
 
-func (l *LeecherGrpc) Size(ctx context.Context) (int64, error) {
+func (l *SeederRemoteGrpc) Size(ctx context.Context) (int64, error) {
 	res, err := l.client.Size(ctx, &v1.SizeArgs{})
 	if err != nil {
 		return -1, err
@@ -46,7 +46,7 @@ func (l *LeecherGrpc) Size(ctx context.Context) (int64, error) {
 	return res.GetN(), nil
 }
 
-func (l *LeecherGrpc) Track(ctx context.Context) error {
+func (l *SeederRemoteGrpc) Track(ctx context.Context) error {
 	if _, err := l.client.Track(ctx, &v1.TrackArgs{}); err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (l *LeecherGrpc) Track(ctx context.Context) error {
 	return nil
 }
 
-func (l *LeecherGrpc) Sync(ctx context.Context) ([]int64, error) {
+func (l *SeederRemoteGrpc) Sync(ctx context.Context) ([]int64, error) {
 	res, err := l.client.Sync(ctx, &v1.SyncArgs{})
 	if err != nil {
 		return []int64{}, err
@@ -63,7 +63,7 @@ func (l *LeecherGrpc) Sync(ctx context.Context) ([]int64, error) {
 	return res.GetDirtyOffsets(), nil
 }
 
-func (l *LeecherGrpc) Close(ctx context.Context) error {
+func (l *SeederRemoteGrpc) Close(ctx context.Context) error {
 	if _, err := l.client.Close(ctx, &v1.CloseArgs{}); err != nil {
 		return err
 	}

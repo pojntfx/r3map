@@ -126,7 +126,7 @@ func (s *PathSeeder) Wait() error {
 	return nil
 }
 
-func (s *PathSeeder) Open() (string, int64, *services.Seeder, error) {
+func (s *PathSeeder) Open() (string, int64, *services.SeederService, error) {
 	size, err := s.local.Size()
 	if err != nil {
 		return "", 0, nil, err
@@ -182,7 +182,7 @@ func (s *PathSeeder) Open() (string, int64, *services.Seeder, error) {
 	}
 
 	synced := false
-	return s.devicePath, size, services.NewSeeder(
+	return s.devicePath, size, services.NewSeederService(
 			b,
 			s.options.Verbose,
 			func() error {

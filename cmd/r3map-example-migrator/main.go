@@ -141,7 +141,7 @@ func main() {
 
 	var (
 		path string
-		svc  *services.Seeder
+		svc  *services.SeederService
 	)
 	if strings.TrimSpace(*raddr) != "" {
 		conn, err := grpc.Dial(*raddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -153,7 +153,7 @@ func main() {
 		log.Println("Connected to", *raddr)
 
 		defer migrator.Close()
-		finalize, _, err := migrator.Leech(services.NewLeecherGrpc(v1.NewSeederClient(conn)))
+		finalize, _, err := migrator.Leech(services.NewSeederRemoteGrpc(v1.NewSeederClient(conn)))
 		if err != nil {
 			panic(err)
 		}
@@ -195,7 +195,7 @@ func main() {
 
 		server := grpc.NewServer()
 
-		v1.RegisterSeederServer(server, services.NewSeederGrpc(svc))
+		v1.RegisterSeederServer(server, services.NewSeederServiceGrpc(svc))
 
 		lis, err := net.Listen("tcp", *laddr)
 		if err != nil {

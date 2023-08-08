@@ -103,7 +103,7 @@ func (s *SliceSeeder) Wait() error {
 	return s.path.Wait()
 }
 
-func (s *SliceSeeder) Open() ([]byte, *services.Seeder, error) {
+func (s *SliceSeeder) Open() ([]byte, *services.SeederService, error) {
 	devicePath, size, svc, err := s.path.Open()
 	if err != nil {
 		return []byte{}, nil, err

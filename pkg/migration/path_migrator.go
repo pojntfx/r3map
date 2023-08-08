@@ -99,7 +99,7 @@ func (s *PathMigrator) Wait() error {
 func (s *PathMigrator) Seed() (
 	path string,
 	size int64,
-	svc *services.Seeder,
+	svc *services.SeederService,
 	err error,
 ) {
 	if s.leecher != nil {
@@ -147,7 +147,7 @@ func (s *PathMigrator) Leech(
 ) (
 	finalize func() (
 		seed func() (
-			svc *services.Seeder,
+			svc *services.SeederService,
 			err error,
 		),
 
@@ -208,7 +208,7 @@ func (s *PathMigrator) Leech(
 	}
 
 	return func() (
-		func() (*services.Seeder, error),
+		func() (*services.SeederService, error),
 
 		string,
 		error,
@@ -219,7 +219,7 @@ func (s *PathMigrator) Leech(
 		}
 
 		return func() (
-			*services.Seeder,
+			*services.SeederService,
 			error,
 		) {
 			releasedDev, releasedErrs, releasedWg, releasedDevicePath := s.leecher.Release()

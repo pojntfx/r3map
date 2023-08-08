@@ -264,7 +264,7 @@ func main() {
 			close(seederErrs)
 		}()
 
-		peer = services.NewLeecherGrpc(v1proto.NewSeederClient(conn))
+		peer = services.NewSeederRemoteGrpc(v1proto.NewSeederClient(conn))
 
 	case seederTypeFrpc:
 		client, err := v1frpc.NewClient(nil, nil)
@@ -281,12 +281,12 @@ func main() {
 			close(seederErrs)
 		}()
 
-		peer = services.NewLeecherFrpc(client)
+		peer = services.NewSeederRemoteFrpc(client)
 
 	case "":
 		seederBackend = remote
 
-		var svc *services.Seeder
+		var svc *services.SeederService
 		if *slice {
 
 			seeder := migration.NewSliceSeeder(

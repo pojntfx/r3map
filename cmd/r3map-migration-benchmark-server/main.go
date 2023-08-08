@@ -108,7 +108,7 @@ func main() {
 	}
 
 	var (
-		svc               *services.Seeder
+		svc               *services.SeederService
 		invalidateLeecher func() error
 		errs              = make(chan error)
 	)
@@ -215,7 +215,7 @@ func main() {
 	if *enableGrpc {
 		server := grpc.NewServer()
 
-		v1proto.RegisterSeederServer(server, services.NewSeederGrpc(svc))
+		v1proto.RegisterSeederServer(server, services.NewSeederServiceGrpc(svc))
 
 		lis, err := net.Listen("tcp", *laddr)
 		if err != nil {
@@ -235,7 +235,7 @@ func main() {
 			}
 		}()
 	} else if *enableFrpc {
-		server, err := v1frpc.NewServer(services.NewSeederFrpc(svc), nil, nil)
+		server, err := v1frpc.NewServer(services.NewSeederServiceFrpc(svc), nil, nil)
 		if err != nil {
 			panic(err)
 		}
