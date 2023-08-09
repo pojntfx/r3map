@@ -152,15 +152,23 @@ func main() {
 
 		log.Println("Connected to", *raddr)
 
+		beforeOpen := time.Now()
+
 		defer migrator.Close()
 		finalize, _, err := migrator.Leech(services.NewSeederRemoteGrpc(v1.NewSeederClient(conn)))
 		if err != nil {
 			panic(err)
 		}
 
+		afterOpen := time.Since(beforeOpen)
+
+		log.Println("Open:", afterOpen)
+
 		log.Println("Press <ENTER> to finalize")
 
 		bufio.NewScanner(os.Stdin).Scan()
+
+		beforeFinalize := time.Now()
 
 		seed, p, err := finalize()
 		if err != nil {
@@ -168,7 +176,11 @@ func main() {
 		}
 		path = p
 
+		afterFinalize := time.Since(beforeFinalize)
+
 		bar.Clear()
+
+		log.Println("Finalize:", afterFinalize)
 
 		log.Println("Resuming app on", path)
 
@@ -184,11 +196,17 @@ func main() {
 
 	if strings.TrimSpace(*laddr) != "" {
 		if svc == nil {
+			beforeOpen := time.Now()
+
 			defer migrator.Close()
 			path, _, svc, err = migrator.Seed()
 			if err != nil {
 				panic(err)
 			}
+
+			afterOpen := time.Since(beforeOpen)
+
+			log.Println("Open:", afterOpen)
 
 			log.Println("Starting app on", path)
 		}
@@ -216,6 +234,8 @@ func main() {
 			}
 			defer file.Close()
 
+			beforeInvalidate := time.Now()
+
 			if _, err := io.CopyN(
 				file,
 				rand.Reader,
@@ -225,6 +245,10 @@ func main() {
 			); err != nil {
 				panic(err)
 			}
+
+			afterInvalidate := time.Since(beforeInvalidate)
+
+			log.Println("Invalidate:", afterInvalidate)
 		}()
 
 		go func() {
