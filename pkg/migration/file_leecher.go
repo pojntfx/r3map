@@ -12,14 +12,10 @@ import (
 	"github.com/pojntfx/r3map/pkg/services"
 )
 
-type FileLeecherHooks struct {
-	OnAfterSync func(dirtyOffsets []int64) error
-
-	OnChunkIsLocal func(off int64) error
-}
-
 type FileLeecher struct {
 	path *PathLeecher
+
+	hooks *LeecherHooks
 
 	deviceFile *os.File
 
@@ -33,16 +29,13 @@ func NewFileLeecher(
 	remote *services.SeederRemote,
 
 	options *LeecherOptions,
-	hooks *FileLeecherHooks,
+	hooks *LeecherHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
 ) *FileLeecher {
-	h := &LeecherHooks{}
-	if hooks != nil {
-		h.OnAfterSync = hooks.OnAfterSync
-
-		h.OnChunkIsLocal = hooks.OnChunkIsLocal
+	if hooks == nil {
+		hooks = &LeecherHooks{}
 	}
 
 	l := &FileLeecher{
@@ -53,14 +46,20 @@ func NewFileLeecher(
 			remote,
 
 			options,
-			h,
+			nil,
 
 			serverOptions,
 			clientOptions,
 		),
+
+		hooks: hooks,
 	}
 
+	l.path.hooks.OnAfterSync = hooks.OnAfterSync
+
 	l.path.hooks.OnBeforeClose = l.onBeforeClose
+
+	l.path.hooks.OnChunkIsLocal = hooks.OnChunkIsLocal
 
 	return l
 }
@@ -101,6 +100,12 @@ func (l *FileLeecher) Release() (
 }
 
 func (l *FileLeecher) onBeforeClose() error {
+	if hook := l.hooks.OnBeforeClose; hook != nil {
+		if err := hook(); err != nil {
+			return err
+		}
+	}
+
 	if !l.released && l.deviceFile != nil {
 		_ = l.deviceFile.Close()
 	}

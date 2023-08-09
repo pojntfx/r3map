@@ -45,13 +45,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	file, err := os.CreateTemp("", "")
+	f, err := os.CreateTemp("", "")
 	if err != nil {
 		panic(err)
 	}
-	defer os.RemoveAll(file.Name())
+	defer os.RemoveAll(f.Name())
 
-	if err := file.Truncate(*size); err != nil {
+	if err := f.Truncate(*size); err != nil {
 		panic(err)
 	}
 
@@ -79,10 +79,10 @@ func main() {
 
 	bar.Add64(*chunkSize)
 
-	migrator := migration.NewPathMigrator(
+	migrator := migration.NewFileMigrator(
 		ctx,
 
-		backend.NewFileBackend(file),
+		backend.NewFileBackend(f),
 
 		&migration.MigratorOptions{
 			ChunkSize:    *chunkSize,
@@ -140,7 +140,7 @@ func main() {
 	}()
 
 	var (
-		path string
+		file *os.File
 		svc  *services.SeederService
 	)
 	if strings.TrimSpace(*raddr) != "" {
@@ -155,7 +155,7 @@ func main() {
 		beforeOpen := time.Now()
 
 		defer migrator.Close()
-		finalize, _, err := migrator.Leech(services.NewSeederRemoteGrpc(v1.NewSeederClient(conn)))
+		finalize, err := migrator.Leech(services.NewSeederRemoteGrpc(v1.NewSeederClient(conn)))
 		if err != nil {
 			panic(err)
 		}
@@ -170,11 +170,11 @@ func main() {
 
 		beforeFinalize := time.Now()
 
-		seed, p, err := finalize()
+		seed, f, err := finalize()
 		if err != nil {
 			panic(err)
 		}
-		path = p
+		file = f
 
 		afterFinalize := time.Since(beforeFinalize)
 
@@ -182,7 +182,7 @@ func main() {
 
 		log.Println("Finalize:", afterFinalize)
 
-		log.Println("Resuming app on", path)
+		log.Println("Resuming app on", file.Name())
 
 		if strings.TrimSpace(*laddr) == "" {
 			return
@@ -199,7 +199,7 @@ func main() {
 			beforeOpen := time.Now()
 
 			defer migrator.Close()
-			path, _, svc, err = migrator.Seed()
+			file, svc, err = migrator.Seed()
 			if err != nil {
 				panic(err)
 			}
@@ -208,7 +208,7 @@ func main() {
 
 			log.Println("Open:", afterOpen)
 
-			log.Println("Starting app on", path)
+			log.Println("Starting app on", file.Name())
 		}
 
 		server := grpc.NewServer()
@@ -228,13 +228,11 @@ func main() {
 
 			bufio.NewScanner(os.Stdin).Scan()
 
-			file, err := os.OpenFile(path, os.O_RDWR, os.ModePerm)
-			if err != nil {
+			beforeInvalidate := time.Now()
+
+			if _, err := file.Seek(0, io.SeekStart); err != nil {
 				panic(err)
 			}
-			defer file.Close()
-
-			beforeInvalidate := time.Now()
 
 			if _, err := io.CopyN(
 				file,

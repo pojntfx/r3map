@@ -450,7 +450,7 @@ func main() {
 
 				Verbose: *verbose,
 			},
-			&migration.SliceLeecherHooks{
+			&migration.LeecherHooks{
 				OnChunkIsLocal: func(off int64) error {
 					bar.Add64(*chunkSize)
 
@@ -548,7 +548,7 @@ func main() {
 
 				Verbose: *verbose,
 			},
-			&migration.FileLeecherHooks{
+			&migration.LeecherHooks{
 				OnChunkIsLocal: func(off int64) error {
 					bar.Add(int(*chunkSize))
 

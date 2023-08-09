@@ -13,14 +13,10 @@ import (
 	"github.com/pojntfx/r3map/pkg/services"
 )
 
-type SliceLeecherHooks struct {
-	OnAfterSync func(dirtyOffsets []int64) error
-
-	OnChunkIsLocal func(off int64) error
-}
-
 type SliceLeecher struct {
 	path *PathLeecher
+
+	hooks *LeecherHooks
 
 	deviceFile *os.File
 
@@ -38,16 +34,13 @@ func NewSliceLeecher(
 	remote *services.SeederRemote,
 
 	options *LeecherOptions,
-	hooks *SliceLeecherHooks,
+	hooks *LeecherHooks,
 
 	serverOptions *server.Options,
 	clientOptions *client.Options,
 ) *SliceLeecher {
-	h := &LeecherHooks{}
-	if hooks != nil {
-		h.OnAfterSync = hooks.OnAfterSync
-
-		h.OnChunkIsLocal = hooks.OnChunkIsLocal
+	if hooks == nil {
+		hooks = &LeecherHooks{}
 	}
 
 	l := &SliceLeecher{
@@ -58,14 +51,20 @@ func NewSliceLeecher(
 			remote,
 
 			options,
-			h,
+			nil,
 
 			serverOptions,
 			clientOptions,
 		),
+
+		hooks: hooks,
 	}
 
+	l.path.hooks.OnAfterSync = hooks.OnAfterSync
+
 	l.path.hooks.OnBeforeClose = l.onBeforeClose
+
+	l.path.hooks.OnChunkIsLocal = hooks.OnChunkIsLocal
 
 	return l
 }
@@ -122,6 +121,12 @@ func (l *SliceLeecher) Release() (
 }
 
 func (l *SliceLeecher) onBeforeClose() error {
+	if hook := l.hooks.OnBeforeClose; hook != nil {
+		if err := hook(); err != nil {
+			return err
+		}
+	}
+
 	if !l.released {
 		l.mmapMount.Lock()
 		if l.slice != nil {
