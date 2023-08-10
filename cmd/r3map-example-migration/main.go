@@ -79,7 +79,7 @@ func main() {
 
 	bar.Add64(*chunkSize)
 
-	migrator := migration.NewFileMigrator(
+	mgr := migration.NewFileMigrator(
 		ctx,
 
 		backend.NewFileBackend(f),
@@ -134,7 +134,7 @@ func main() {
 	go func() {
 		defer wg.Done()
 
-		if err := migrator.Wait(); err != nil {
+		if err := mgr.Wait(); err != nil {
 			panic(err)
 		}
 	}()
@@ -152,8 +152,8 @@ func main() {
 
 		log.Println("Connected to", *raddr)
 
-		defer migrator.Close()
-		finalize, err := migrator.Leech(services.NewSeederRemoteGrpc(v1.NewSeederClient(conn)))
+		defer mgr.Close()
+		finalize, err := mgr.Leech(services.NewSeederRemoteGrpc(v1.NewSeederClient(conn)))
 		if err != nil {
 			panic(err)
 		}
@@ -172,10 +172,6 @@ func main() {
 
 		log.Println("Resuming app on", file.Name())
 
-		if strings.TrimSpace(*laddr) == "" {
-			return
-		}
-
 		svc, err = seed()
 		if err != nil {
 			panic(err)
@@ -184,8 +180,8 @@ func main() {
 
 	if strings.TrimSpace(*laddr) != "" {
 		if svc == nil {
-			defer migrator.Close()
-			file, svc, err = migrator.Seed()
+			defer mgr.Close()
+			file, svc, err = mgr.Seed()
 			if err != nil {
 				panic(err)
 			}
