@@ -87,6 +87,10 @@ func NewManagedPathMount(
 		}
 	}
 
+	if options.PushWorkers <= 0 {
+		options.PushWorkers = 512
+	}
+
 	if options.PushInterval == 0 {
 		options.PushInterval = time.Second * 20
 	}
