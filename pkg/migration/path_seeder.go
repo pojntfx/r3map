@@ -59,7 +59,7 @@ func NewPathSeeder(
 	}
 
 	if options.ChunkSize <= 0 {
-		options.ChunkSize = 4096
+		options.ChunkSize = client.MaximumBlockSize
 	}
 
 	if hooks == nil {
@@ -96,7 +96,7 @@ func NewPathSeederFromLeecher(
 	}
 
 	if options.ChunkSize <= 0 {
-		options.ChunkSize = 4096
+		options.ChunkSize = client.MaximumBlockSize
 	}
 
 	if hooks == nil {

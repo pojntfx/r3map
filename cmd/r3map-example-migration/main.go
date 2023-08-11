@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
+	"github.com/pojntfx/go-nbd/pkg/client"
 	v1 "github.com/pojntfx/r3map/pkg/api/proto/migration/v1"
 	"github.com/pojntfx/r3map/pkg/migration"
 	"github.com/pojntfx/r3map/pkg/services"
@@ -27,12 +28,7 @@ import (
 )
 
 func main() {
-	size := flag.Int64("size", 4096*8192*10, "Size of the resource")
-
-	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
-	maxChunkSize := flag.Int64("max-chunk-size", services.MaxChunkSize, "Maximum chunk size to support")
-
-	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")
+	size := flag.Int64("size", 536870912, "Size of the resource")
 
 	raddr := flag.String("raddr", "", "Remote address (set to enable leeching)")
 	laddr := flag.String("laddr", "", "Listen address (set to enable seeding)")
@@ -78,7 +74,7 @@ func main() {
 		}),
 	)
 
-	bar.Add64(*chunkSize)
+	bar.Add(client.MaximumBlockSize)
 
 	mgr := migration.NewFileMigrator(
 		ctx,
@@ -86,11 +82,6 @@ func main() {
 		backend.NewFileBackend(f),
 
 		&migration.MigratorOptions{
-			ChunkSize:    *chunkSize,
-			MaxChunkSize: *maxChunkSize,
-
-			PullWorkers: *pullWorkers,
-
 			Verbose: *verbose,
 		},
 		&migration.MigratorHooks{
@@ -102,7 +93,7 @@ func main() {
 			OnAfterSync: func(dirtyOffsets []int64) error {
 				bar.Clear()
 
-				delta := (len(dirtyOffsets) * int(*chunkSize))
+				delta := (len(dirtyOffsets) * client.MaximumBlockSize)
 
 				log.Printf("Invalidated: %.2f MB (%.2f Mb)", float64(delta)/(1024*1024), (float64(delta)/(1024*1024))*8)
 
@@ -120,7 +111,7 @@ func main() {
 			},
 
 			OnChunkIsLocal: func(off int64) error {
-				bar.Add(int(*chunkSize))
+				bar.Add(client.MaximumBlockSize)
 
 				return nil
 			},
@@ -161,7 +152,7 @@ func main() {
 		}
 		defer conn.Close()
 
-		log.Println("Connected to", *raddr)
+		log.Println("Leeching from", *raddr)
 
 		defer mgr.Close()
 		finalize, err := mgr.Leech(services.NewSeederRemoteGrpc(v1.NewSeederClient(conn)))
@@ -169,7 +160,7 @@ func main() {
 			panic(err)
 		}
 
-		log.Println("Press <ENTER> to finalize")
+		log.Println("Press <ENTER> to finalize migration")
 
 		bufio.NewScanner(os.Stdin).Scan()
 
@@ -210,12 +201,14 @@ func main() {
 		}
 		defer lis.Close()
 
-		log.Println("Listening on", *laddr)
+		log.Println("Seeding on", *laddr)
 
 		go func() {
-			log.Println("Press <ENTER> to invalidate")
+			log.Println("Press <ENTER> to invalidate resource")
 
 			bufio.NewScanner(os.Stdin).Scan()
+
+			log.Println("Invalidating resource")
 
 			if _, err := file.Seek(0, io.SeekStart); err != nil {
 				panic(err)

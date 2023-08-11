@@ -15,9 +15,7 @@ import (
 )
 
 func main() {
-	size := flag.Int64("size", 4096*8192*10, "Size of the resource")
-
-	maxChunkSize := flag.Int64("max-chunk-size", services.MaxChunkSize, "Maximum chunk size to support")
+	size := flag.Int64("size", 536870912, "Size of the resource")
 
 	laddr := flag.String("laddr", "localhost:1337", "Listen address")
 
@@ -43,7 +41,7 @@ func main() {
 			services.NewBackend(
 				backend.NewFileBackend(f),
 				*verbose,
-				*maxChunkSize,
+				services.MaxChunkSize,
 			),
 		),
 	)

@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	size := flag.Int64("size", 4096*8192*10, "Size of the resource")
+	size := flag.Int64("size", 536870912, "Size of the resource")
 
 	raddr := flag.String("raddr", "localhost:1337", "Remote address")
 
@@ -55,6 +55,7 @@ func main() {
 			services.NewBackendRemoteGrpc(
 				v1.NewBackendClient(conn),
 			),
+			*size,
 			false,
 		),
 		backend.NewFileBackend(f),

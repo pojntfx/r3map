@@ -19,6 +19,7 @@ import (
 	"github.com/minio/minio-go"
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
+	"github.com/pojntfx/go-nbd/pkg/client"
 	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/mount/v1"
 	v1proto "github.com/pojntfx/r3map/pkg/api/proto/mount/v1"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"
@@ -54,7 +55,7 @@ var (
 
 func main() {
 	s := flag.Int64("size", 4096*8192, "Size of the memory region, file to allocate or to size assume in case of the dudirekta/gRPC/fRPC remotes")
-	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
+	chunkSize := flag.Int64("chunk-size", client.MaximumBlockSize, "Chunk size to use")
 
 	remoteBackend := flag.String(
 		"remote-backend",

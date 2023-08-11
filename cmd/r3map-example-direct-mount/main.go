@@ -18,6 +18,8 @@ import (
 )
 
 func main() {
+	size := flag.Int64("size", 536870912, "Size of the resource in byte")
+
 	raddr := flag.String("raddr", "localhost:1337", "Remote address")
 
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
@@ -52,6 +54,7 @@ func main() {
 			services.NewBackendRemoteGrpc(
 				v1.NewBackendClient(conn),
 			),
+			*size,
 			*verbose,
 		),
 		devFile,

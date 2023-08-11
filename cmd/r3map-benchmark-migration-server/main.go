@@ -17,6 +17,7 @@ import (
 
 	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
+	"github.com/pojntfx/go-nbd/pkg/client"
 	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/migration/v1"
 	v1proto "github.com/pojntfx/r3map/pkg/api/proto/migration/v1"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"
@@ -46,7 +47,7 @@ func main() {
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
 	size := flag.Int64("size", 4096*8192, "Size of the memory region or file to allocate")
-	chunkSize := flag.Int64("chunk-size", 4096, "Chunk size to use")
+	chunkSize := flag.Int64("chunk-size", client.MaximumBlockSize, "Chunk size to use")
 	maxChunkSize := flag.Int64("max-chunk-size", services.MaxChunkSize, "Maximum chunk size to support")
 	bck := flag.String(
 		"backend",
