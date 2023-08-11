@@ -385,7 +385,6 @@ func main() {
 
 		peer = &services.SeederRemote{
 			ReadAt: svc.ReadAt,
-			Size:   svc.Size,
 			Track:  svc.Track,
 			Sync:   svc.Sync,
 			Close:  svc.Close,
@@ -395,10 +394,7 @@ func main() {
 		panic(errUnknownSeeder)
 	}
 
-	size, err := peer.Size(ctx)
-	if err != nil {
-		panic(err)
-	}
+	size := *s
 
 	bar := progressbar.NewOptions(
 		int(size),

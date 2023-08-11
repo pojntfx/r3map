@@ -179,7 +179,7 @@ func main() {
 				panic(errNoPeerFound)
 			}
 
-			*config.backendInstance = lbackend.NewRPCBackend(ctx, peer, *verbose)
+			*config.backendInstance = lbackend.NewRPCBackend(ctx, peer, *s, *verbose)
 
 		case backendTypeGrpc:
 			conn, err := grpc.Dial(config.backendLocation, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -188,7 +188,7 @@ func main() {
 			}
 			defer conn.Close()
 
-			*config.backendInstance = lbackend.NewRPCBackend(ctx, services.NewBackendRemoteGrpc(v1proto.NewBackendClient(conn)), *verbose)
+			*config.backendInstance = lbackend.NewRPCBackend(ctx, services.NewBackendRemoteGrpc(v1proto.NewBackendClient(conn)), *s, *verbose)
 
 		case backendTypeFrpc:
 			client, err := v1frpc.NewClient(nil, nil)
@@ -201,7 +201,7 @@ func main() {
 			}
 			defer client.Close()
 
-			*config.backendInstance = lbackend.NewRPCBackend(ctx, services.NewBackendRemoteFrpc(client), *verbose)
+			*config.backendInstance = lbackend.NewRPCBackend(ctx, services.NewBackendRemoteFrpc(client), *s, *verbose)
 
 		case backendTypeRedis:
 			options, err := redis.ParseURL(config.backendLocation)

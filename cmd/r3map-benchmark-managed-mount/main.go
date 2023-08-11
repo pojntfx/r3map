@@ -203,7 +203,7 @@ func main() {
 				panic(errNoPeerFound)
 			}
 
-			*config.backendInstance = lbackend.NewRPCBackend(ctx, peer, false)
+			*config.backendInstance = lbackend.NewRPCBackend(ctx, peer, *s, false)
 
 		case backendTypeGrpc:
 			conn, err := grpc.Dial(config.backendLocation, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -240,14 +240,6 @@ func main() {
 
 					return int(res.GetLength()), nil
 				},
-				Size: func(context context.Context) (int64, error) {
-					res, err := client.Size(ctx, &v1proto.SizeArgs{})
-					if err != nil {
-						return 0, err
-					}
-
-					return res.GetSize(), nil
-				},
 				Sync: func(context context.Context) error {
 					if _, err := client.Sync(ctx, &v1proto.SyncArgs{}); err != nil {
 						return err
@@ -257,7 +249,7 @@ func main() {
 				},
 			}
 
-			*config.backendInstance = lbackend.NewRPCBackend(ctx, peer, false)
+			*config.backendInstance = lbackend.NewRPCBackend(ctx, peer, *s, false)
 
 		case backendTypeFrpc:
 			client, err := v1frpc.NewClient(nil, nil)
@@ -296,14 +288,6 @@ func main() {
 
 					return int(res.Length), nil
 				},
-				Size: func(context context.Context) (int64, error) {
-					res, err := client.Backend.Size(ctx, &v1frpc.ComPojtingerFelicitasR3MapMountV1SizeArgs{})
-					if err != nil {
-						return 0, err
-					}
-
-					return res.Size, nil
-				},
 				Sync: func(context context.Context) error {
 					if _, err := client.Backend.Sync(ctx, &v1frpc.ComPojtingerFelicitasR3MapMountV1SyncArgs{}); err != nil {
 						return err
@@ -313,7 +297,7 @@ func main() {
 				},
 			}
 
-			*config.backendInstance = lbackend.NewRPCBackend(ctx, peer, false)
+			*config.backendInstance = lbackend.NewRPCBackend(ctx, peer, *s, false)
 
 		case backendTypeRedis:
 			options, err := redis.ParseURL(config.backendLocation)
