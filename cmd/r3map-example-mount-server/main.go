@@ -5,10 +5,12 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	v1 "github.com/pojntfx/r3map/pkg/api/proto/mount/v1"
 	"github.com/pojntfx/r3map/pkg/services"
+	"github.com/pojntfx/r3map/pkg/utils"
 	"google.golang.org/grpc"
 )
 
@@ -52,9 +54,19 @@ func main() {
 	}
 	defer lis.Close()
 
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt)
+	go func() {
+		<-done
+
+		log.Println("Exiting gracefully")
+
+		_ = lis.Close()
+	}()
+
 	log.Println("Listening on", *laddr)
 
-	if err := srv.Serve(lis); err != nil {
+	if err := srv.Serve(lis); err != nil && !utils.IsClosedErr(err) {
 		panic(err)
 	}
 }

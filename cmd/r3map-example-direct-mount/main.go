@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"os/signal"
 	"sync"
 
 	v1 "github.com/pojntfx/r3map/pkg/api/proto/mount/v1"
@@ -67,6 +68,16 @@ func main() {
 		if err := mnt.Wait(); err != nil {
 			panic(err)
 		}
+	}()
+
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt)
+	go func() {
+		<-done
+
+		log.Println("Exiting gracefully")
+
+		_ = mnt.Close()
 	}()
 
 	defer mnt.Close()

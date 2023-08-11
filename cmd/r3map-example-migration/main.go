@@ -11,6 +11,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
 	"sync"
 	"time"
@@ -137,6 +138,16 @@ func main() {
 		if err := mgr.Wait(); err != nil {
 			panic(err)
 		}
+	}()
+
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt)
+	go func() {
+		<-done
+
+		log.Println("Exiting gracefully")
+
+		_ = mgr.Close()
 	}()
 
 	var (
