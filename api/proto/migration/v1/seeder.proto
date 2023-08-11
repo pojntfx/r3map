@@ -6,7 +6,6 @@ option go_package = "github.com/pojntfx/r3map/pkg/api/proto/migration/v1";
 
 service Seeder {
   rpc ReadAt(ReadAtArgs) returns (ReadAtReply) {};
-  rpc Size(SizeArgs) returns (SizeReply) {};
   rpc Track(TrackArgs) returns (TrackReply) {};
   rpc Sync(SyncArgs) returns (SyncReply) {};
   rpc Close(CloseArgs) returns (CloseReply) {};
@@ -21,10 +20,6 @@ message ReadAtReply {
   int32 N = 1;
   bytes P = 2;
 }
-
-message SizeArgs {}
-
-message SizeReply { int64 N = 1; }
 
 message TrackArgs {}
 

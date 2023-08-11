@@ -39,17 +39,6 @@ func (s *BackendServiceFrpc) WriteAt(ctx context.Context, args *v1.ComPojtingerF
 	}, nil
 }
 
-func (s *BackendServiceFrpc) Size(ctx context.Context, args *v1.ComPojtingerFelicitasR3MapMountV1SizeArgs) (*v1.ComPojtingerFelicitasR3MapMountV1SizeReply, error) {
-	size, err := s.svc.Size(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &v1.ComPojtingerFelicitasR3MapMountV1SizeReply{
-		Size: size,
-	}, nil
-}
-
 func (s *BackendServiceFrpc) Sync(ctx context.Context, args *v1.ComPojtingerFelicitasR3MapMountV1SyncArgs) (*v1.ComPojtingerFelicitasR3MapMountV1SyncReply, error) {
 	if err := s.svc.Sync(ctx); err != nil {
 		return nil, err

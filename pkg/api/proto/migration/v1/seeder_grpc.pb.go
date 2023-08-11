@@ -20,7 +20,6 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	Seeder_ReadAt_FullMethodName = "/com.pojtinger.felicitas.r3map.migration.v1.Seeder/ReadAt"
-	Seeder_Size_FullMethodName   = "/com.pojtinger.felicitas.r3map.migration.v1.Seeder/Size"
 	Seeder_Track_FullMethodName  = "/com.pojtinger.felicitas.r3map.migration.v1.Seeder/Track"
 	Seeder_Sync_FullMethodName   = "/com.pojtinger.felicitas.r3map.migration.v1.Seeder/Sync"
 	Seeder_Close_FullMethodName  = "/com.pojtinger.felicitas.r3map.migration.v1.Seeder/Close"
@@ -31,7 +30,6 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SeederClient interface {
 	ReadAt(ctx context.Context, in *ReadAtArgs, opts ...grpc.CallOption) (*ReadAtReply, error)
-	Size(ctx context.Context, in *SizeArgs, opts ...grpc.CallOption) (*SizeReply, error)
 	Track(ctx context.Context, in *TrackArgs, opts ...grpc.CallOption) (*TrackReply, error)
 	Sync(ctx context.Context, in *SyncArgs, opts ...grpc.CallOption) (*SyncReply, error)
 	Close(ctx context.Context, in *CloseArgs, opts ...grpc.CallOption) (*CloseReply, error)
@@ -48,15 +46,6 @@ func NewSeederClient(cc grpc.ClientConnInterface) SeederClient {
 func (c *seederClient) ReadAt(ctx context.Context, in *ReadAtArgs, opts ...grpc.CallOption) (*ReadAtReply, error) {
 	out := new(ReadAtReply)
 	err := c.cc.Invoke(ctx, Seeder_ReadAt_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *seederClient) Size(ctx context.Context, in *SizeArgs, opts ...grpc.CallOption) (*SizeReply, error) {
-	out := new(SizeReply)
-	err := c.cc.Invoke(ctx, Seeder_Size_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +84,6 @@ func (c *seederClient) Close(ctx context.Context, in *CloseArgs, opts ...grpc.Ca
 // for forward compatibility
 type SeederServer interface {
 	ReadAt(context.Context, *ReadAtArgs) (*ReadAtReply, error)
-	Size(context.Context, *SizeArgs) (*SizeReply, error)
 	Track(context.Context, *TrackArgs) (*TrackReply, error)
 	Sync(context.Context, *SyncArgs) (*SyncReply, error)
 	Close(context.Context, *CloseArgs) (*CloseReply, error)
@@ -108,9 +96,6 @@ type UnimplementedSeederServer struct {
 
 func (UnimplementedSeederServer) ReadAt(context.Context, *ReadAtArgs) (*ReadAtReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReadAt not implemented")
-}
-func (UnimplementedSeederServer) Size(context.Context, *SizeArgs) (*SizeReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Size not implemented")
 }
 func (UnimplementedSeederServer) Track(context.Context, *TrackArgs) (*TrackReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Track not implemented")
@@ -148,24 +133,6 @@ func _Seeder_ReadAt_Handler(srv interface{}, ctx context.Context, dec func(inter
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SeederServer).ReadAt(ctx, req.(*ReadAtArgs))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Seeder_Size_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SizeArgs)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SeederServer).Size(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Seeder_Size_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SeederServer).Size(ctx, req.(*SizeArgs))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -234,10 +201,6 @@ var Seeder_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReadAt",
 			Handler:    _Seeder_ReadAt_Handler,
-		},
-		{
-			MethodName: "Size",
-			Handler:    _Seeder_Size_Handler,
 		},
 		{
 			MethodName: "Track",

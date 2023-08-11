@@ -60,14 +60,6 @@ func (b *SeederService) ReadAt(context context.Context, length int, off int64) (
 	return
 }
 
-func (b *SeederService) Size(context context.Context) (int64, error) {
-	if b.verbose {
-		log.Println("Size()")
-	}
-
-	return b.b.Size()
-}
-
 func (b *SeederService) Track(context context.Context) error {
 	if b.verbose {
 		log.Println("Track()")

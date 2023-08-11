@@ -16,7 +16,6 @@ func NewBackendRemoteFrpc(client *v1.Client) *BackendRemote {
 	return &BackendRemote{
 		ReadAt:  l.ReadAt,
 		WriteAt: l.WriteAt,
-		Size:    l.Size,
 		Sync:    l.Sync,
 	}
 }
@@ -46,15 +45,6 @@ func (l *BackendRemoteFrpc) WriteAt(ctx context.Context, p []byte, off int64) (n
 	}
 
 	return int(res.Length), nil
-}
-
-func (l *BackendRemoteFrpc) Size(ctx context.Context) (int64, error) {
-	res, err := l.client.Backend.Size(ctx, &v1.ComPojtingerFelicitasR3MapMountV1SizeArgs{})
-	if err != nil {
-		return 0, err
-	}
-
-	return res.Size, nil
 }
 
 func (l *BackendRemoteFrpc) Sync(ctx context.Context) error {

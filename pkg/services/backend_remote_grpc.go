@@ -16,7 +16,6 @@ func NewBackendRemoteGrpc(client v1.BackendClient) *BackendRemote {
 	return &BackendRemote{
 		ReadAt:  l.ReadAt,
 		WriteAt: l.WriteAt,
-		Size:    l.Size,
 		Sync:    l.Sync,
 	}
 }
@@ -46,15 +45,6 @@ func (l *BackendRemoteGrpc) WriteAt(ctx context.Context, p []byte, off int64) (n
 	}
 
 	return int(res.GetLength()), nil
-}
-
-func (l *BackendRemoteGrpc) Size(ctx context.Context) (int64, error) {
-	res, err := l.client.Size(ctx, &v1.SizeArgs{})
-	if err != nil {
-		return 0, err
-	}
-
-	return res.GetSize(), nil
 }
 
 func (l *BackendRemoteGrpc) Sync(ctx context.Context) error {

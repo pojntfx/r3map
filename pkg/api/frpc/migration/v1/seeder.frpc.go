@@ -147,115 +147,6 @@ func (x *ComPojtingerFelicitasR3MapMigrationV1ReadAtReply) decode(d *polyglot.De
 	return nil
 }
 
-type ComPojtingerFelicitasR3MapMigrationV1SizeArgs struct {
-	error error
-	flags uint8
-}
-
-func NewComPojtingerFelicitasR3MapMigrationV1SizeArgs() *ComPojtingerFelicitasR3MapMigrationV1SizeArgs {
-	return &ComPojtingerFelicitasR3MapMigrationV1SizeArgs{}
-}
-
-func (x *ComPojtingerFelicitasR3MapMigrationV1SizeArgs) Error(b *polyglot.Buffer, err error) {
-	polyglot.Encoder(b).Error(err)
-}
-
-func (x *ComPojtingerFelicitasR3MapMigrationV1SizeArgs) Encode(b *polyglot.Buffer) {
-	if x == nil {
-		polyglot.Encoder(b).Nil()
-	} else {
-		if x.error != nil {
-			polyglot.Encoder(b).Error(x.error)
-			return
-		}
-		polyglot.Encoder(b).Uint8(x.flags)
-	}
-}
-
-func (x *ComPojtingerFelicitasR3MapMigrationV1SizeArgs) Decode(b []byte) error {
-	if x == nil {
-		return NilDecode
-	}
-	d := polyglot.GetDecoder(b)
-	defer d.Return()
-	return x.decode(d)
-}
-
-func (x *ComPojtingerFelicitasR3MapMigrationV1SizeArgs) decode(d *polyglot.Decoder) error {
-	if d.Nil() {
-		return nil
-	}
-
-	var err error
-	x.error, err = d.Error()
-	if err == nil {
-		return nil
-	}
-	x.flags, err = d.Uint8()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-type ComPojtingerFelicitasR3MapMigrationV1SizeReply struct {
-	error error
-	flags uint8
-
-	N int64
-}
-
-func NewComPojtingerFelicitasR3MapMigrationV1SizeReply() *ComPojtingerFelicitasR3MapMigrationV1SizeReply {
-	return &ComPojtingerFelicitasR3MapMigrationV1SizeReply{}
-}
-
-func (x *ComPojtingerFelicitasR3MapMigrationV1SizeReply) Error(b *polyglot.Buffer, err error) {
-	polyglot.Encoder(b).Error(err)
-}
-
-func (x *ComPojtingerFelicitasR3MapMigrationV1SizeReply) Encode(b *polyglot.Buffer) {
-	if x == nil {
-		polyglot.Encoder(b).Nil()
-	} else {
-		if x.error != nil {
-			polyglot.Encoder(b).Error(x.error)
-			return
-		}
-		polyglot.Encoder(b).Uint8(x.flags)
-		polyglot.Encoder(b).Int64(x.N)
-	}
-}
-
-func (x *ComPojtingerFelicitasR3MapMigrationV1SizeReply) Decode(b []byte) error {
-	if x == nil {
-		return NilDecode
-	}
-	d := polyglot.GetDecoder(b)
-	defer d.Return()
-	return x.decode(d)
-}
-
-func (x *ComPojtingerFelicitasR3MapMigrationV1SizeReply) decode(d *polyglot.Decoder) error {
-	if d.Nil() {
-		return nil
-	}
-
-	var err error
-	x.error, err = d.Error()
-	if err == nil {
-		return nil
-	}
-	x.flags, err = d.Uint8()
-	if err != nil {
-		return err
-	}
-	x.N, err = d.Int64()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 type ComPojtingerFelicitasR3MapMigrationV1TrackArgs struct {
 	error error
 	flags uint8
@@ -585,7 +476,6 @@ func (x *ComPojtingerFelicitasR3MapMigrationV1CloseReply) decode(d *polyglot.Dec
 
 type Seeder interface {
 	ReadAt(context.Context, *ComPojtingerFelicitasR3MapMigrationV1ReadAtArgs) (*ComPojtingerFelicitasR3MapMigrationV1ReadAtReply, error)
-	Size(context.Context, *ComPojtingerFelicitasR3MapMigrationV1SizeArgs) (*ComPojtingerFelicitasR3MapMigrationV1SizeReply, error)
 	Track(context.Context, *ComPojtingerFelicitasR3MapMigrationV1TrackArgs) (*ComPojtingerFelicitasR3MapMigrationV1TrackReply, error)
 	Sync(context.Context, *ComPojtingerFelicitasR3MapMigrationV1SyncArgs) (*ComPojtingerFelicitasR3MapMigrationV1SyncReply, error)
 	Close(context.Context, *ComPojtingerFelicitasR3MapMigrationV1CloseArgs) (*ComPojtingerFelicitasR3MapMigrationV1CloseReply, error)
@@ -630,26 +520,6 @@ func NewServer(seeder Seeder, tlsConfig *tls.Config, logger *zerolog.Logger) (*S
 		return
 	}
 	table[11] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
-		req := NewComPojtingerFelicitasR3MapMigrationV1SizeArgs()
-		err := req.Decode((*incoming.Content)[:incoming.Metadata.ContentLength])
-		if err == nil {
-			var res *ComPojtingerFelicitasR3MapMigrationV1SizeReply
-			outgoing = incoming
-			outgoing.Content.Reset()
-			res, err = seeder.Size(ctx, req)
-			if err != nil {
-				if _, ok := err.(CloseError); ok {
-					action = frisbee.CLOSE
-				}
-				res.Error(outgoing.Content, err)
-			} else {
-				res.Encode(outgoing.Content)
-			}
-			outgoing.Metadata.ContentLength = uint32(len(*outgoing.Content))
-		}
-		return
-	}
-	table[12] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
 		req := NewComPojtingerFelicitasR3MapMigrationV1TrackArgs()
 		err := req.Decode((*incoming.Content)[:incoming.Metadata.ContentLength])
 		if err == nil {
@@ -669,7 +539,7 @@ func NewServer(seeder Seeder, tlsConfig *tls.Config, logger *zerolog.Logger) (*S
 		}
 		return
 	}
-	table[13] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
+	table[12] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
 		req := NewComPojtingerFelicitasR3MapMigrationV1SyncArgs()
 		err := req.Decode((*incoming.Content)[:incoming.Metadata.ContentLength])
 		if err == nil {
@@ -689,7 +559,7 @@ func NewServer(seeder Seeder, tlsConfig *tls.Config, logger *zerolog.Logger) (*S
 		}
 		return
 	}
-	table[14] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
+	table[13] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
 		req := NewComPojtingerFelicitasR3MapMigrationV1CloseArgs()
 		err := req.Decode((*incoming.Content)[:incoming.Metadata.ContentLength])
 		if err == nil {
@@ -752,10 +622,6 @@ type subSeederClient struct {
 	nextReadAtMu      sync.RWMutex
 	inflightReadAt    map[uint16]chan *ComPojtingerFelicitasR3MapMigrationV1ReadAtReply
 	inflightReadAtMu  sync.RWMutex
-	nextSize          uint16
-	nextSizeMu        sync.RWMutex
-	inflightSize      map[uint16]chan *ComPojtingerFelicitasR3MapMigrationV1SizeReply
-	inflightSizeMu    sync.RWMutex
 	nextTrack         uint16
 	nextTrackMu       sync.RWMutex
 	inflightTrack     map[uint16]chan *ComPojtingerFelicitasR3MapMigrationV1TrackReply
@@ -793,18 +659,6 @@ func NewClient(tlsConfig *tls.Config, logger *zerolog.Logger) (*Client, error) {
 		return
 	}
 	table[11] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
-		c.Seeder.inflightSizeMu.RLock()
-		if ch, ok := c.Seeder.inflightSize[incoming.Metadata.Id]; ok {
-			c.Seeder.inflightSizeMu.RUnlock()
-			res := NewComPojtingerFelicitasR3MapMigrationV1SizeReply()
-			res.Decode((*incoming.Content)[:incoming.Metadata.ContentLength])
-			ch <- res
-		} else {
-			c.Seeder.inflightSizeMu.RUnlock()
-		}
-		return
-	}
-	table[12] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
 		c.Seeder.inflightTrackMu.RLock()
 		if ch, ok := c.Seeder.inflightTrack[incoming.Metadata.Id]; ok {
 			c.Seeder.inflightTrackMu.RUnlock()
@@ -816,7 +670,7 @@ func NewClient(tlsConfig *tls.Config, logger *zerolog.Logger) (*Client, error) {
 		}
 		return
 	}
-	table[13] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
+	table[12] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
 		c.Seeder.inflightSyncMu.RLock()
 		if ch, ok := c.Seeder.inflightSync[incoming.Metadata.Id]; ok {
 			c.Seeder.inflightSyncMu.RUnlock()
@@ -828,7 +682,7 @@ func NewClient(tlsConfig *tls.Config, logger *zerolog.Logger) (*Client, error) {
 		}
 		return
 	}
-	table[14] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
+	table[13] = func(ctx context.Context, incoming *packet.Packet) (outgoing *packet.Packet, action frisbee.Action) {
 		c.Seeder.inflightCloseMu.RLock()
 		if ch, ok := c.Seeder.inflightClose[incoming.Metadata.Id]; ok {
 			c.Seeder.inflightCloseMu.RUnlock()
@@ -859,10 +713,6 @@ func NewClient(tlsConfig *tls.Config, logger *zerolog.Logger) (*Client, error) {
 	c.Seeder.nextReadAt = 0
 	c.Seeder.nextReadAtMu.Unlock()
 	c.Seeder.inflightReadAt = make(map[uint16]chan *ComPojtingerFelicitasR3MapMigrationV1ReadAtReply)
-	c.Seeder.nextSizeMu.Lock()
-	c.Seeder.nextSize = 0
-	c.Seeder.nextSizeMu.Unlock()
-	c.Seeder.inflightSize = make(map[uint16]chan *ComPojtingerFelicitasR3MapMigrationV1SizeReply)
 	c.Seeder.nextTrackMu.Lock()
 	c.Seeder.nextTrack = 0
 	c.Seeder.nextTrackMu.Unlock()
@@ -920,44 +770,10 @@ func (c *subSeederClient) ReadAt(ctx context.Context, req *ComPojtingerFelicitas
 	return
 }
 
-func (c *subSeederClient) Size(ctx context.Context, req *ComPojtingerFelicitasR3MapMigrationV1SizeArgs) (res *ComPojtingerFelicitasR3MapMigrationV1SizeReply, err error) {
-	ch := make(chan *ComPojtingerFelicitasR3MapMigrationV1SizeReply, 1)
-	p := packet.Get()
-	p.Metadata.Operation = 11
-
-	c.nextSizeMu.Lock()
-	c.nextSize += 1
-	id := c.nextSize
-	c.nextSizeMu.Unlock()
-	p.Metadata.Id = id
-
-	req.Encode(p.Content)
-	p.Metadata.ContentLength = uint32(len(*p.Content))
-	c.inflightSizeMu.Lock()
-	c.inflightSize[id] = ch
-	c.inflightSizeMu.Unlock()
-	err = c.client.WritePacket(p)
-	if err != nil {
-		packet.Put(p)
-		return
-	}
-	select {
-	case res = <-ch:
-		err = res.error
-	case <-ctx.Done():
-		err = ctx.Err()
-	}
-	c.inflightSizeMu.Lock()
-	delete(c.inflightSize, id)
-	c.inflightSizeMu.Unlock()
-	packet.Put(p)
-	return
-}
-
 func (c *subSeederClient) Track(ctx context.Context, req *ComPojtingerFelicitasR3MapMigrationV1TrackArgs) (res *ComPojtingerFelicitasR3MapMigrationV1TrackReply, err error) {
 	ch := make(chan *ComPojtingerFelicitasR3MapMigrationV1TrackReply, 1)
 	p := packet.Get()
-	p.Metadata.Operation = 12
+	p.Metadata.Operation = 11
 
 	c.nextTrackMu.Lock()
 	c.nextTrack += 1
@@ -991,7 +807,7 @@ func (c *subSeederClient) Track(ctx context.Context, req *ComPojtingerFelicitasR
 func (c *subSeederClient) Sync(ctx context.Context, req *ComPojtingerFelicitasR3MapMigrationV1SyncArgs) (res *ComPojtingerFelicitasR3MapMigrationV1SyncReply, err error) {
 	ch := make(chan *ComPojtingerFelicitasR3MapMigrationV1SyncReply, 1)
 	p := packet.Get()
-	p.Metadata.Operation = 13
+	p.Metadata.Operation = 12
 
 	c.nextSyncMu.Lock()
 	c.nextSync += 1
@@ -1025,7 +841,7 @@ func (c *subSeederClient) Sync(ctx context.Context, req *ComPojtingerFelicitasR3
 func (c *subSeederClient) Close(ctx context.Context, req *ComPojtingerFelicitasR3MapMigrationV1CloseArgs) (res *ComPojtingerFelicitasR3MapMigrationV1CloseReply, err error) {
 	ch := make(chan *ComPojtingerFelicitasR3MapMigrationV1CloseReply, 1)
 	p := packet.Get()
-	p.Metadata.Operation = 14
+	p.Metadata.Operation = 13
 
 	c.nextCloseMu.Lock()
 	c.nextClose += 1

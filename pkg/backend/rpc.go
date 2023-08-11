@@ -11,6 +11,7 @@ type RPCBackend struct {
 	ctx context.Context
 
 	remote *services.BackendRemote
+	size   int64
 
 	verbose bool
 }
@@ -18,9 +19,10 @@ type RPCBackend struct {
 func NewRPCBackend(
 	ctx context.Context,
 	remote *services.BackendRemote,
+	size int64,
 	verbose bool,
 ) *RPCBackend {
-	return &RPCBackend{ctx, remote, verbose}
+	return &RPCBackend{ctx, remote, size, verbose}
 }
 
 func (b *RPCBackend) ReadAt(p []byte, off int64) (n int, err error) {
@@ -52,7 +54,7 @@ func (b *RPCBackend) Size() (int64, error) {
 		log.Println("Size()")
 	}
 
-	return b.remote.Size(b.ctx)
+	return b.size, nil
 }
 
 func (b *RPCBackend) Sync() error {

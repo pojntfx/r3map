@@ -30,17 +30,6 @@ func (s *SeederServiceGrpc) ReadAt(ctx context.Context, args *v1.ReadAtArgs) (*v
 	}, nil
 }
 
-func (s *SeederServiceGrpc) Size(ctx context.Context, args *v1.SizeArgs) (*v1.SizeReply, error) {
-	size, err := s.svc.Size(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &v1.SizeReply{
-		N: size,
-	}, nil
-}
-
 func (s *SeederServiceGrpc) Track(ctx context.Context, args *v1.TrackArgs) (*v1.TrackReply, error) {
 	if err := s.svc.Track(ctx); err != nil {
 		return nil, err

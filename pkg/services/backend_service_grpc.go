@@ -41,17 +41,6 @@ func (s *BackendServiceGrpc) WriteAt(ctx context.Context, args *v1.WriteAtArgs) 
 	}, nil
 }
 
-func (s *BackendServiceGrpc) Size(ctx context.Context, args *v1.SizeArgs) (*v1.SizeReply, error) {
-	size, err := s.svc.Size(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &v1.SizeReply{
-		Size: size,
-	}, nil
-}
-
 func (s *BackendServiceGrpc) Sync(ctx context.Context, args *v1.SyncArgs) (*v1.SyncReply, error) {
 	if err := s.svc.Sync(ctx); err != nil {
 		return nil, err

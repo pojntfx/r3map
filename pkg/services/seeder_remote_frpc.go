@@ -15,7 +15,6 @@ func NewSeederRemoteFrpc(client *v1.Client) *SeederRemote {
 
 	return &SeederRemote{
 		ReadAt: l.ReadAt,
-		Size:   l.Size,
 		Track:  l.Track,
 		Sync:   l.Sync,
 		Close:  l.Close,
@@ -35,15 +34,6 @@ func (l *SeederRemoteFrpc) ReadAt(ctx context.Context, length int, off int64) (r
 		N: int(res.N),
 		P: res.P,
 	}, err
-}
-
-func (l *SeederRemoteFrpc) Size(ctx context.Context) (int64, error) {
-	res, err := l.client.Seeder.Size(ctx, &v1.ComPojtingerFelicitasR3MapMigrationV1SizeArgs{})
-	if err != nil {
-		return -1, err
-	}
-
-	return res.N, nil
 }
 
 func (l *SeederRemoteFrpc) Track(ctx context.Context) error {

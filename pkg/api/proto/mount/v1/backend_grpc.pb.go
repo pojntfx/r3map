@@ -21,7 +21,6 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	Backend_ReadAt_FullMethodName  = "/com.pojtinger.felicitas.r3map.mount.v1.Backend/ReadAt"
 	Backend_WriteAt_FullMethodName = "/com.pojtinger.felicitas.r3map.mount.v1.Backend/WriteAt"
-	Backend_Size_FullMethodName    = "/com.pojtinger.felicitas.r3map.mount.v1.Backend/Size"
 	Backend_Sync_FullMethodName    = "/com.pojtinger.felicitas.r3map.mount.v1.Backend/Sync"
 )
 
@@ -31,7 +30,6 @@ const (
 type BackendClient interface {
 	ReadAt(ctx context.Context, in *ReadAtArgs, opts ...grpc.CallOption) (*ReadAtReply, error)
 	WriteAt(ctx context.Context, in *WriteAtArgs, opts ...grpc.CallOption) (*WriteAtReply, error)
-	Size(ctx context.Context, in *SizeArgs, opts ...grpc.CallOption) (*SizeReply, error)
 	Sync(ctx context.Context, in *SyncArgs, opts ...grpc.CallOption) (*SyncReply, error)
 }
 
@@ -61,15 +59,6 @@ func (c *backendClient) WriteAt(ctx context.Context, in *WriteAtArgs, opts ...gr
 	return out, nil
 }
 
-func (c *backendClient) Size(ctx context.Context, in *SizeArgs, opts ...grpc.CallOption) (*SizeReply, error) {
-	out := new(SizeReply)
-	err := c.cc.Invoke(ctx, Backend_Size_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *backendClient) Sync(ctx context.Context, in *SyncArgs, opts ...grpc.CallOption) (*SyncReply, error) {
 	out := new(SyncReply)
 	err := c.cc.Invoke(ctx, Backend_Sync_FullMethodName, in, out, opts...)
@@ -85,7 +74,6 @@ func (c *backendClient) Sync(ctx context.Context, in *SyncArgs, opts ...grpc.Cal
 type BackendServer interface {
 	ReadAt(context.Context, *ReadAtArgs) (*ReadAtReply, error)
 	WriteAt(context.Context, *WriteAtArgs) (*WriteAtReply, error)
-	Size(context.Context, *SizeArgs) (*SizeReply, error)
 	Sync(context.Context, *SyncArgs) (*SyncReply, error)
 	mustEmbedUnimplementedBackendServer()
 }
@@ -99,9 +87,6 @@ func (UnimplementedBackendServer) ReadAt(context.Context, *ReadAtArgs) (*ReadAtR
 }
 func (UnimplementedBackendServer) WriteAt(context.Context, *WriteAtArgs) (*WriteAtReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WriteAt not implemented")
-}
-func (UnimplementedBackendServer) Size(context.Context, *SizeArgs) (*SizeReply, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Size not implemented")
 }
 func (UnimplementedBackendServer) Sync(context.Context, *SyncArgs) (*SyncReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Sync not implemented")
@@ -155,24 +140,6 @@ func _Backend_WriteAt_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Backend_Size_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SizeArgs)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(BackendServer).Size(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Backend_Size_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BackendServer).Size(ctx, req.(*SizeArgs))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Backend_Sync_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SyncArgs)
 	if err := dec(in); err != nil {
@@ -205,10 +172,6 @@ var Backend_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "WriteAt",
 			Handler:    _Backend_WriteAt_Handler,
-		},
-		{
-			MethodName: "Size",
-			Handler:    _Backend_Size_Handler,
 		},
 		{
 			MethodName: "Sync",

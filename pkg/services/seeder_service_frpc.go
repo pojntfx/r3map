@@ -28,17 +28,6 @@ func (s *SeederServiceFrpc) ReadAt(ctx context.Context, args *v1.ComPojtingerFel
 	}, nil
 }
 
-func (s *SeederServiceFrpc) Size(ctx context.Context, args *v1.ComPojtingerFelicitasR3MapMigrationV1SizeArgs) (*v1.ComPojtingerFelicitasR3MapMigrationV1SizeReply, error) {
-	size, err := s.svc.Size(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &v1.ComPojtingerFelicitasR3MapMigrationV1SizeReply{
-		N: size,
-	}, nil
-}
-
 func (s *SeederServiceFrpc) Track(ctx context.Context, args *v1.ComPojtingerFelicitasR3MapMigrationV1TrackArgs) (*v1.ComPojtingerFelicitasR3MapMigrationV1TrackReply, error) {
 	if err := s.svc.Track(ctx); err != nil {
 		return nil, err
