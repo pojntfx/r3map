@@ -114,10 +114,12 @@ func main() {
 		errs              = make(chan error)
 	)
 	if *slice {
-		seeder := migration.NewSliceSeeder(
+		seeder := migration.NewSliceMigrator(
+			ctx,
+
 			b,
 
-			&migration.SeederOptions{
+			&migration.MigratorOptions{
 				ChunkSize:    *chunkSize,
 				MaxChunkSize: *maxChunkSize,
 
@@ -140,7 +142,7 @@ func main() {
 		}()
 
 		defer seeder.Close()
-		deviceSlice, s, err := seeder.Open()
+		deviceSlice, s, err := seeder.Seed()
 		if err != nil {
 			panic(err)
 		}
@@ -163,10 +165,12 @@ func main() {
 
 		log.Println("Connected to slice")
 	} else {
-		seeder := migration.NewFileSeeder(
+		seeder := migration.NewFileMigrator(
+			ctx,
+
 			b,
 
-			&migration.SeederOptions{
+			&migration.MigratorOptions{
 				ChunkSize:    *chunkSize,
 				MaxChunkSize: *maxChunkSize,
 
@@ -189,7 +193,7 @@ func main() {
 		}()
 
 		defer seeder.Close()
-		deviceFile, s, err := seeder.Open()
+		deviceFile, s, err := seeder.Seed()
 		if err != nil {
 			panic(err)
 		}
@@ -224,7 +228,7 @@ func main() {
 		}
 		defer lis.Close()
 
-		log.Println("Listening on", lis.Addr())
+		log.Println("Seeding on", lis.Addr())
 
 		go func() {
 			if err := server.Serve(lis); err != nil {
@@ -241,7 +245,7 @@ func main() {
 			panic(err)
 		}
 
-		log.Println("Listening on", *laddr)
+		log.Println("Seeding on", *laddr)
 
 		go func() {
 			if err := server.Start(*laddr); err != nil {
@@ -281,7 +285,7 @@ func main() {
 		}
 		defer lis.Close()
 
-		log.Println("Listening on", lis.Addr())
+		log.Println("Seeding on", lis.Addr())
 
 		go func() {
 			for {
@@ -314,9 +318,11 @@ func main() {
 	}
 
 	go func() {
-		log.Println("Press <ENTER> to invalidate")
+		log.Println("Press <ENTER> to invalidate resource")
 
 		bufio.NewScanner(os.Stdin).Scan()
+
+		log.Println("Invalidating resource")
 
 		beforeInvalidate := time.Now()
 

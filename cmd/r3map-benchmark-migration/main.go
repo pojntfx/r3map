@@ -203,9 +203,9 @@ func main() {
 	}()
 
 	var (
-		peer              *services.SeederRemote
-		invalidateLeecher func() error
-		seederBackend     backend.Backend
+		peer             *services.SeederRemote
+		invalidateSeeder func() error
+		seederBackend    backend.Backend
 	)
 	switch *seeder {
 	case seederTypeDudirekta:
@@ -254,6 +254,8 @@ func main() {
 			panic(errNoPeerFound)
 		}
 
+		log.Println("Leeching from", *seederLocation)
+
 	case seederTypeGrpc:
 		conn, err := grpc.Dial(*seederLocation, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
@@ -264,6 +266,8 @@ func main() {
 
 			close(seederErrs)
 		}()
+
+		log.Println("Leeching from", *seederLocation)
 
 		peer = services.NewSeederRemoteGrpc(v1proto.NewSeederClient(conn))
 
@@ -282,6 +286,8 @@ func main() {
 			close(seederErrs)
 		}()
 
+		log.Println("Leeching from", *seederLocation)
+
 		peer = services.NewSeederRemoteFrpc(client)
 
 	case "":
@@ -289,11 +295,12 @@ func main() {
 
 		var svc *services.SeederService
 		if *slice {
+			mgr := migration.NewSliceMigrator(
+				ctx,
 
-			seeder := migration.NewSliceSeeder(
 				seederBackend,
 
-				&migration.SeederOptions{
+				&migration.MigratorOptions{
 					ChunkSize: *chunkSize,
 
 					Verbose: *verbose,
@@ -305,7 +312,7 @@ func main() {
 			)
 
 			go func() {
-				if err := seeder.Wait(); err != nil {
+				if err := mgr.Wait(); err != nil {
 					seederErrs <- err
 
 					return
@@ -314,13 +321,13 @@ func main() {
 				close(seederErrs)
 			}()
 
-			defer seeder.Close()
-			deviceSlice, service, err := seeder.Open()
+			defer mgr.Close()
+			deviceSlice, service, err := mgr.Seed()
 			if err != nil {
 				panic(err)
 			}
 
-			invalidateLeecher = func() error {
+			invalidateSeeder = func() error {
 				if _, err := io.CopyN(
 					utils.NewSliceWriter(deviceSlice),
 					rand.Reader,
@@ -336,10 +343,12 @@ func main() {
 
 			svc = service
 		} else {
-			seeder := migration.NewFileSeeder(
+			mgr := migration.NewFileMigrator(
+				ctx,
+
 				seederBackend,
 
-				&migration.SeederOptions{
+				&migration.MigratorOptions{
 					ChunkSize: *chunkSize,
 
 					Verbose: *verbose,
@@ -351,7 +360,7 @@ func main() {
 			)
 
 			go func() {
-				if err := seeder.Wait(); err != nil {
+				if err := mgr.Wait(); err != nil {
 					seederErrs <- err
 
 					return
@@ -360,13 +369,13 @@ func main() {
 				close(seederErrs)
 			}()
 
-			defer seeder.Close()
-			deviceFile, service, err := seeder.Open()
+			defer mgr.Close()
+			deviceFile, service, err := mgr.Seed()
 			if err != nil {
 				panic(err)
 			}
 
-			invalidateLeecher = func() error {
+			invalidateSeeder = func() error {
 				if _, err := io.CopyN(
 					deviceFile,
 					rand.Reader,
@@ -434,35 +443,35 @@ func main() {
 	}()
 
 	if *slice {
-		leecher := migration.NewSliceLeecher(
+		leecher := migration.NewSliceMigrator(
 			ctx,
 
 			local,
-			peer,
 
-			&migration.LeecherOptions{
+			&migration.MigratorOptions{
 				ChunkSize: *chunkSize,
 
 				PullWorkers: *pullWorkers,
 
 				Verbose: *verbose,
 			},
-			&migration.LeecherHooks{
-				OnChunkIsLocal: func(off int64) error {
-					bar.Add64(*chunkSize)
-
-					return nil
-				},
+			&migration.MigratorHooks{
 				OnAfterSync: func(dirtyOffsets []int64) error {
 					bar.Clear()
 
-					delta := (len(dirtyOffsets) * int(*chunkSize))
+					delta := (len(dirtyOffsets) * client.MaximumBlockSize)
 
 					log.Printf("Invalidated: %.2f MB (%.2f Mb)", float64(delta)/(1024*1024), (float64(delta)/(1024*1024))*8)
 
 					bar.ChangeMax(int(size) + delta)
 
 					bar.Describe("Finalizing")
+
+					return nil
+				},
+
+				OnChunkIsLocal: func(off int64) error {
+					bar.Add(client.MaximumBlockSize)
 
 					return nil
 				},
@@ -485,7 +494,8 @@ func main() {
 		beforeOpen := time.Now()
 
 		defer leecher.Close()
-		if err := leecher.Open(); err != nil {
+		finalize, err := leecher.Leech(peer)
+		if err != nil {
 			panic(err)
 		}
 
@@ -493,19 +503,19 @@ func main() {
 
 		fmt.Printf("Open: %v\n", afterOpen)
 
-		if invalidateLeecher != nil {
-			if err := invalidateLeecher(); err != nil {
+		if invalidateSeeder != nil {
+			if err := invalidateSeeder(); err != nil {
 				panic(err)
 			}
 		}
 
-		log.Println("Press <ENTER> to finalize")
+		log.Println("Press <ENTER> to finalize migration")
 
 		bufio.NewScanner(os.Stdin).Scan()
 
 		beforeFinalize := time.Now()
 
-		deviceSlice, err := leecher.Finalize()
+		_, deviceSlice, err := finalize()
 		if err != nil {
 			panic(err)
 		}
@@ -532,35 +542,35 @@ func main() {
 
 		fmt.Printf("Read throughput: %.2f MB/s (%.2f Mb/s)\n", throughputMB, throughputMB*8)
 	} else {
-		leecher := migration.NewFileLeecher(
+		leecher := migration.NewFileMigrator(
 			ctx,
 
 			local,
-			peer,
 
-			&migration.LeecherOptions{
+			&migration.MigratorOptions{
 				ChunkSize: *chunkSize,
 
 				PullWorkers: *pullWorkers,
 
 				Verbose: *verbose,
 			},
-			&migration.LeecherHooks{
-				OnChunkIsLocal: func(off int64) error {
-					bar.Add(int(*chunkSize))
-
-					return nil
-				},
+			&migration.MigratorHooks{
 				OnAfterSync: func(dirtyOffsets []int64) error {
 					bar.Clear()
 
-					delta := (len(dirtyOffsets) * int(*chunkSize))
+					delta := (len(dirtyOffsets) * client.MaximumBlockSize)
 
 					log.Printf("Invalidated: %.2f MB (%.2f Mb)", float64(delta)/(1024*1024), (float64(delta)/(1024*1024))*8)
 
 					bar.ChangeMax(int(size) + delta)
 
 					bar.Describe("Finalizing")
+
+					return nil
+				},
+
+				OnChunkIsLocal: func(off int64) error {
+					bar.Add(client.MaximumBlockSize)
 
 					return nil
 				},
@@ -583,7 +593,8 @@ func main() {
 		beforeOpen := time.Now()
 
 		defer leecher.Close()
-		if err := leecher.Open(); err != nil {
+		finalize, err := leecher.Leech(peer)
+		if err != nil {
 			panic(err)
 		}
 
@@ -591,19 +602,19 @@ func main() {
 
 		fmt.Printf("Open: %v\n", afterOpen)
 
-		if invalidateLeecher != nil {
-			if err := invalidateLeecher(); err != nil {
+		if invalidateSeeder != nil {
+			if err := invalidateSeeder(); err != nil {
 				panic(err)
 			}
 		}
 
-		log.Println("Press <ENTER> to finalize")
+		log.Println("Press <ENTER> to finalize migration")
 
 		bufio.NewScanner(os.Stdin).Scan()
 
 		beforeFinalize := time.Now()
 
-		deviceFile, err := leecher.Finalize()
+		_, deviceFile, err := finalize()
 		if err != nil {
 			panic(err)
 		}
