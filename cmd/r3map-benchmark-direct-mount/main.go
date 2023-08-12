@@ -54,7 +54,7 @@ var (
 )
 
 func main() {
-	s := flag.Int64("size", 4096*8192, "Size of the memory region, file to allocate or to size assume in case of the dudirekta/gRPC/fRPC remotes")
+	s := flag.Int64("size", 536870912, "Size of the memory region, file to allocate or to size assume in case of the dudirekta/gRPC/fRPC remotes")
 	chunkSize := flag.Int64("chunk-size", client.MaximumBlockSize, "Chunk size to use")
 
 	remoteBackend := flag.String(

@@ -46,7 +46,7 @@ func main() {
 	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
-	size := flag.Int64("size", 4096*8192, "Size of the memory region or file to allocate")
+	size := flag.Int64("size", 536870912, "Size of the memory region or file to allocate")
 	chunkSize := flag.Int64("chunk-size", client.MaximumBlockSize, "Chunk size to use")
 	maxChunkSize := flag.Int64("max-chunk-size", services.MaxChunkSize, "Maximum chunk size to support")
 	bck := flag.String(
