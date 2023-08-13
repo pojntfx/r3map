@@ -17,10 +17,16 @@ jobs:
         target:
           - id: test
             src: .
-            os: golang:bullseye
-            flags: ""
-            cmd: go test ./...
-            dst: out/*
+            os: golang:bookworm
+            flags: "-e '--privileged'"
+            cmd: ./Hydrunfile test
+            dst: out/nonexistent*
+          - id: integration
+            src: .
+            os: golang:bookworm
+            flags: "-e '--privileged'"
+            cmd: ./Hydrunfile integration
+            dst: out/nonexistent*
 
     steps:
       - name: Maximize build space

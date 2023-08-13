@@ -1,0 +1,45 @@
+#!/bin/bash
+
+set -e
+
+# Test
+if [ "$1" = "test" ]; then
+    # Configure Git
+    git config --global --add safe.directory '*'
+
+    # Install native dependencies
+    apt update
+    apt install -y protobuf-compiler
+
+    # Generate dependencies
+    make depend
+
+    # Run tests
+    make test
+
+    exit 0
+fi
+
+# Integration
+if [ "$1" = "integration" ]; then
+    # Configure Git
+    git config --global --add safe.directory '*'
+
+    # Install native dependencies
+    apt update
+    apt install -y protobuf-compiler
+
+    # Generate dependencies
+    make depend
+
+    # Load the NBD module
+    /usr/sbin/modprobe nbd
+
+    # Build
+    make -j$(nproc) build
+
+    # Run integration
+    make integration
+
+    exit 0
+fi

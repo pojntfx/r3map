@@ -10,6 +10,10 @@ build: $(addprefix build/,$(obj))
 $(addprefix build/,$(obj)):
 	go build -o $(OUTPUT_DIR)/$(subst build/,,$@) ./cmd/$(subst build/,,$@)
 
+# Test
+test:
+	go test -timeout 3600s -parallel $(shell nproc) ./...
+
 # Integration
 integration: integration/direct-mount-file integration/direct-mount-directory integration/managed-mount-file integration/managed-mount-directory
 
@@ -31,4 +35,8 @@ clean:
 
 # Dependencies
 depend:
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	go install github.com/loopholelabs/frpc-go/protoc-gen-go-frpc@latest
+
 	go generate ./...
