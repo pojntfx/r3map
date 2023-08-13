@@ -18,13 +18,13 @@ jobs:
           - id: test
             src: .
             os: golang:bookworm
-            flags: "-e '--privileged'"
+            flags: ""
             cmd: ./Hydrunfile test
             dst: out/nonexistent*
           - id: integration
             src: .
             os: golang:bookworm
-            flags: "-e '--privileged'"
+            flags: "-e '--privileged -v /lib/modules:/lib/modules'"
             cmd: ./Hydrunfile integration
             dst: out/nonexistent*
 

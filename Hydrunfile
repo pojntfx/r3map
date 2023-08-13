@@ -27,7 +27,7 @@ if [ "$1" = "integration" ]; then
 
     # Install native dependencies
     apt update
-    apt install -y protobuf-compiler
+    apt install -y protobuf-compiler kmod
 
     # Generate dependencies
     make depend
