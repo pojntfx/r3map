@@ -24,7 +24,7 @@ jobs:
           - id: integration
             src: .
             os: golang:bookworm
-            flags: "-e '--privileged -v /lib/modules:/lib/modules'"
+            flags: "-e '--privileged -v /lib/modules:/lib/modules -v /dev:/dev'"
             cmd: ./Hydrunfile integration
             dst: out/nonexistent*
 
