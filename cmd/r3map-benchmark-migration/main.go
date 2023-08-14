@@ -59,7 +59,7 @@ func main() {
 	s := flag.Int64("size", 536870912, "Size of the memory region, file to allocate or to size assume in case of the dudirekta/gRPC/fRPC remotes")
 	chunkSize := flag.Int64("chunk-size", client.MaximumBlockSize, "Chunk size to use")
 
-	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in 0 to disable preemptive pull")
+	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background")
 
 	localBackend := flag.String(
 		"local-backend",

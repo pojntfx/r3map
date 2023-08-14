@@ -77,7 +77,7 @@ func NewManagedPathMount(
 		options.ChunkSize = client.MaximumBlockSize
 	}
 
-	if options.PullWorkers <= 0 {
+	if options.PullWorkers < 0 {
 		options.PullWorkers = 512
 	}
 
@@ -87,7 +87,7 @@ func NewManagedPathMount(
 		}
 	}
 
-	if options.PushWorkers <= 0 {
+	if options.PushWorkers < 0 {
 		options.PushWorkers = 512
 	}
 

@@ -13,6 +13,14 @@ Re**m**ote **mm**ap: Efficient remote memory region mounting and migration.
 
 🚧 This project is a work-in-progress! Instructions will be added as soon as it is usable. 🚧
 
+## Installation
+
+You can add r3map to your Go project by running the following:
+
+```shell
+$ go get github.com/pojntfx/r3map/...@latest
+```
+
 ## License
 
 r3map (c) 2023 Felicitas Pojtinger and contributors
