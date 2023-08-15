@@ -34,6 +34,10 @@ jobs:
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
+      - name: Increate swap space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 10
       - name: Checkout
         uses: actions/checkout@v2
       - name: Set up QEMU
