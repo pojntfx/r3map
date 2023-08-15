@@ -18,16 +18,16 @@ test:
 integration: integration/direct-mount-file integration/direct-mount-directory integration/managed-mount-file integration/managed-mount-directory
 
 integration/direct-mount-file:
-	$(OUTPUT_DIR)/r3map-benchmark-direct-mount --remote-backend=file
+	$(OUTPUT_DIR)/r3map-benchmark-direct-mount --remote-backend=file --size 52428800
 
 integration/direct-mount-directory:
-	$(OUTPUT_DIR)/r3map-benchmark-direct-mount --remote-backend=directory --remote-backend-chunking
+	$(OUTPUT_DIR)/r3map-benchmark-direct-mount --remote-backend=directory --remote-backend-chunking --size 52428800
 
 integration/managed-mount-file:
-	$(OUTPUT_DIR)/r3map-benchmark-managed-mount --remote-backend=file
+	$(OUTPUT_DIR)/r3map-benchmark-managed-mount --remote-backend=file --size 52428800
 
 integration/managed-mount-directory:
-	$(OUTPUT_DIR)/r3map-benchmark-managed-mount --remote-backend=directory --remote-backend-chunking
+	$(OUTPUT_DIR)/r3map-benchmark-managed-mount --remote-backend=directory --remote-backend-chunking --size 52428800
 
 # Clean
 clean:
