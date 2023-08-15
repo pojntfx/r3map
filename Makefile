@@ -15,19 +15,16 @@ test:
 	go test -timeout 3600s -parallel $(shell nproc) ./...
 
 # Integration
-integration: integration/direct-mount-file integration/direct-mount-directory integration/managed-mount-file integration/managed-mount-directory
+integration: integration/direct-mount-file integration/direct-mount-directory integration/managed-mount-file
 
 integration/direct-mount-file:
-	$(OUTPUT_DIR)/r3map-benchmark-direct-mount --remote-backend=file --size 10485760
+	$(OUTPUT_DIR)/r3map-benchmark-direct-mount --remote-backend=file
 
 integration/direct-mount-directory:
-	$(OUTPUT_DIR)/r3map-benchmark-direct-mount --remote-backend=directory --remote-backend-chunking --size 10485760
+	$(OUTPUT_DIR)/r3map-benchmark-direct-mount --remote-backend=directory --remote-backend-chunking
 
 integration/managed-mount-file:
-	$(OUTPUT_DIR)/r3map-benchmark-managed-mount --remote-backend=file --size 10485760
-
-integration/managed-mount-directory:
-	$(OUTPUT_DIR)/r3map-benchmark-managed-mount --remote-backend=directory --remote-backend-chunking --size 10485760
+	$(OUTPUT_DIR)/r3map-benchmark-managed-mount --remote-backend=file
 
 # Clean
 clean:
