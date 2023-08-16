@@ -11,6 +11,8 @@ Re**m**ote **mm**ap: High-performance remote memory region mounts and migrations
 
 ## Overview
 
+🚧 This project is a work-in-progress! Instructions will be added as soon as it is usable. 🚧
+
 r3map enables high-performance remote memory region mounts and migrations in user space.
 
 It enables you to ...
@@ -32,6 +34,14 @@ You can add r3map to your Go project by running the following:
 ```shell
 $ go get github.com/pojntfx/r3map/...@latest
 ```
+
+## Reference
+
+### Mounts and Migrations
+
+There are two fundamental use cases for r3map: Mounts and migrations. Mounting refers to accessing a resource, where the resource (such as a S3 bucket, remote file or memory region, tape drive etc.) is made available locally as either read-only or read-write, without having to download the entire resource first. Mounts work similarly to `mmap`, except the can map almost any resource into memory, not just files. To learn more about mounts, see the [Push-Pull Synchronization with Mounts](https://pojntfx.github.io/networked-linux-memsync/main.html#push-pull-synchronization-with-mounts) chapter in the accompanying thesis.
+
+Migration refers to moving a resource like a memory region and moving it from one host to another. While mounts are optimized to have low initialization latencies and the best possible throughput performance, migrations are optimized to have the smallest possible downtime, where downtime refers to the typically short period in the migration process where neither the source nor the destination host can write to the resource that is being migrated. To optimize for this, migrations have a two-phase protocol which splits the device initialization and critical migration phases into two distinct parts, which keeps downtime to a minimum. To learn more about mounts, see the [Pull-Based Synchronization with Migrations](https://pojntfx.github.io/networked-linux-memsync/main.html#pull-based-synchronization-with-migrations) chapter in the accompanying thesis.
 
 ## License
 
