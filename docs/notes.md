@@ -1,11 +1,47 @@
-- Concepts
+- Reference
 
-  - Paradigms: Mounting vs. migrating a resource
-  - Frontends: Path vs. slice. vs. file and limitations
-  - Direct vs. Managed Mounts: The role of background push and pull
-  - Backends: Interface and pre-made backends to choose from (including RPC backend)
-  - Seeder: Interface and transports (dudirekta/fRPC/gRPC)
-  - Chunking: When it is required and how to use it
+  - Mounts and Migrations
+    - There are two fundamental use cases for r3map: Mounts and migrations
+    - Mounting[] refers to accessing a resource, where a remote resource (such as a S3 bucket, remote file, remote memory region, tape drive etc.) is made available locally
+    - Mounts can be either read-only or read-write
+    - Effectively an option to `mmap` a remote resource into memory, instead of just a local file
+    - Migration[] refers to taking a resource like a memory region and moving it from one device to another
+    - While mounts are optimized to have low initial overhead/initialization time and good read/write throughput, migrations are optimized to have the shortest possible downtime (the moment in the migration where neither the source nor destination host can write to the resource)
+    - Migrations have a two-phase protocol[] that allows for splitting the device initialization and actual critical migration parts of the protocol into distinct phases, reducing this downtime
+    - More information is available in []
+  - Path, Slice and File Frontends
+    - r3map is designed to allow for it to be used for new and existing applications with minimal friction
+    - As a result, multiple frontends can be used for accessing a resource
+    - The path frontend is the simplest; it simply exposes the resource as a block device and returns the path, which can then be read from or written to by the application using the resource
+    - The slice frontend exposes the block device as a `[]byte` by `mmap`ing it and integrates this with the resources' lifecycle
+    - The file frontend opens the block device and returns the file descriptor, and also integrates it with the resource's lifecycle
+    - These frontends make it possible to transparently access the resource, with individual chunks being fetched only when they are needed, or pre-emptively depending on the API chosen
+    - Note that the Go garbage collector can cause deadlocks with the slice frontend if the resulting resource is used in the same process, which means that if possible, the file frontend should be used[]
+  - Direct and Managed Mounts
+    - Direct mounts serve as the simplest mount API, and allow directly mapping a resource into memory
+    - Direct mounts can be read-only or read-write, and simply forward reads/writes between a backend (such as a S3 bucket) and the memory region
+    - These mounts work well for LAN deployments, but since chunks are only read/written from/to the backed as they are being accessed, this is very latency sensitive
+    - The managed mount API allows for intelligent, concurrent background pull and push
+    - This makes it possible to pre-emptively fetch chunks before they are being accessed, and writes back changes periodically
+    - Managed mounts have a slight internal overhead, but perform much better than direct mounts in scenarios where the RTT is high[]
+  - Backends
+    - For the direct and managed mount APIs, backends provide a resource
+    - For the migration API, backends are also used to store a local copy of the resource
+    - The interface for it is simple: (interface here)
+    - Any reason that can be represented by this interface can be mounted with r3map
+    - There are many example backends to choose from, if you don't want to write your own:
+      - [Memory](https://github.com/pojntfx/go-nbd/blob/main/pkg/backend/memory.go): Exposes a memory region as a resource
+      - [File](https://github.com/pojntfx/go-nbd/blob/main/pkg/backend/file.go): Exposes a file as a resource
+      - [Directory](./pkg/backend/directory.go): Exposes a directory of chunks as a resource
+      - [Redis](./pkg/backend/redis.go): Exposes a Redis database as a resource
+      - [Cassandra](./pkg/backend/cassandra.go): Exposes a Cassandra/ScyllaDB database as a resource
+      - [S3](./pkg/backend/s3.go): Exposes a S3 bucket as a resource
+      - [RPC](pkg/backend/rpc.go): Exposes any backend over an RPC framework of choice, such as gRPC
+    - The backends all behave differently under different conditions[]
+    - See the benchmarks[] for how these backends can be used
+    - Depending on the backend used, a chunking system may need to be used
+    - While chunking is possible on both the client and server-side, server-side is usually much faster[]
+    - To see an example of how chunking works, see the benchmarks[]
 
 - Usage
   - Mapping a remote resource into memory with the Direct Mount API
