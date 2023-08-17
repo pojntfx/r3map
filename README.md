@@ -125,7 +125,27 @@ To build and start a development version of one of the examples locally, run the
 $ git clone https://github.com/pojntfx/r3map.git
 $ cd go-nbd
 
-# TODO: Add contribution commands from scratchpad
+# Load the NBD kernel module
+$ sudo modprobe nbd
+
+# Run unit tests
+$ make test
+
+# Build integration tests
+$ make -j$(nproc)
+# Run integration tests/benchmarks
+$ sudo make integration
+
+# Run the migration examples
+$ go build -o /tmp/r3map-example-migration ./cmd/r3map-example-migration/ && sudo /tmp/r3map-example-migration --laddr localhost:1337 --invalidate 10 # Starts the first seeder
+$ go build -o /tmp/r3map-example-migration ./cmd/r3map-example-migration/ && sudo /tmp/r3map-example-migration --raddr localhost:1337 --laddr localhost:1337 --invalidate 10 # First leeches the resource from a first seeder, then starts seeding
+$ go build -o /tmp/r3map-example-migration ./cmd/r3map-example-migration/ && sudo /tmp/r3map-example-migration --raddr localhost:1337 # Leeches the resource from a seeder again, but doesn't start seeding afterwards
+
+# Run the mount examples
+$ go build -o /tmp/r3map-example-mount-server ./cmd/r3map-example-mount-server/ && sudo /tmp/r3map-example-mount-server # Starts the server exposing the resource
+$ go build -o /tmp/r3map-example-direct-mount ./cmd/r3map-example-direct-mount/ && sudo /tmp/r3map-example-direct-mount # Mounts the resource with a direct mount
+$ go build -o /tmp/r3map-example-managed-mount ./cmd/r3map-example-managed-mount/ && sudo /tmp/r3map-example-managed-mount # Mounts the resource with a managed mount
+
 ```
 
 Have any questions or need help? Chat with us [on Matrix](https://matrix.to/#/#r3map:matrix.org?via=matrix.org)!
