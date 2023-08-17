@@ -25,7 +25,7 @@ It enables you to ...
 
 The project is accompanied by a scientific thesis, which provides additional insights into design decisions, the internals of its implementation and comparisons to existing technologies and alternative approaches:
 
-[Pojtinger, F. (2023). Efficient Synchronization of Linux Memory Regions over a Network: A Comparative Study and Implementation](https://github.com/pojntfx/networked-linux-memsync)
+[<img src="./docs/thesis-badge.png" alt="Thesis badge for Pojtinger, F. (2023). Efficient Synchronization of Linux Memory Regions over a Network: A Comparative Study and Implementation" height="60" align="center">](https://pojntfx.github.io/networked-linux-memsync/main.pdf)
 
 ## Installation
 
