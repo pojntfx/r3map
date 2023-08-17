@@ -59,6 +59,31 @@ In contrast to this, the managed mount API allows for smart background pull and 
 
 Managed mounts also allow for the use of a [pull priority function](https://pojntfx.github.io/networked-linux-memsync/main.html#background-pull-and-push); this allows an application to specify which chunks should be pulled first and in which order, which can be used to further increase throughput and decrease latency by having the most important chunks be available as quickly as possible. This is particularly useful if the resource has a known structure: For example, if the metadata is available at the end of a media file but needs to be available first to start playback, the pull priority function can [help optimize the pull process without having to change the format or re-encoding](https://pojntfx.github.io/networked-linux-memsync/main.html#universal-database-media-and-asset-streaming).
 
+### Backends
+
+Backends represent a way of accessing a resource (in the case of mounts) and locally storing a resource (in the case of migrations). They are defined as by a simple interface, as [introduced by go-nbd](https://github.com/pojntfx/go-nbd#1-define-a-backend):
+
+```go
+type Backend interface {
+	ReadAt(p []byte, off int64) (n int, err error)
+	WriteAt(p []byte, off int64) (n int, err error)
+	Size() (int64, error)
+	Sync() error
+}
+```
+
+Since the interface is so simple, it is possible to represent almost any resource with it. There are also a few example backends available:
+
+- [Memory](https://github.com/pojntfx/go-nbd/blob/main/pkg/backend/memory.go): Exposes a memory region as a resource
+- [File](https://github.com/pojntfx/go-nbd/blob/main/pkg/backend/file.go): Exposes a file as a resource
+- [Directory](./pkg/backend/directory.go): Exposes a directory of chunks as a resource
+- [Redis](./pkg/backend/redis.go): Exposes a Redis database as a resource
+- [Cassandra](./pkg/backend/cassandra.go): Exposes a Cassandra/ScyllaDB database as a resource
+- [S3](./pkg/backend/s3.go): Exposes a S3 bucket as a resource
+- [RPC](pkg/backend/rpc.go): Exposes any backend over an RPC framework of choice, such as gRPC
+
+Different backends tend to have different characteristics, and behave [differently depending on network conditions and access patterns](https://pojntfx.github.io/networked-linux-memsync/main.html#backends). Depending on the backend used, it might also require a chunking system, which [can be implemented on both the client and server side](https://pojntfx.github.io/networked-linux-memsync/main.html#chunking-3); see the [mount benchmarks](./cmd/r3map-benchmark-managed-mount/main.go) for more information.
+
 ## License
 
 r3map (c) 2023 Felicitas Pojtinger and contributors
