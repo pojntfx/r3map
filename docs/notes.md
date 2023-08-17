@@ -24,6 +24,7 @@
     - The managed mount API allows for intelligent, concurrent background pull and push
     - This makes it possible to pre-emptively fetch chunks before they are being accessed, and writes back changes periodically
     - Managed mounts have a slight internal overhead, but perform much better than direct mounts in scenarios where the RTT is high[]
+    - Pull priority functions
   - Backends
     - For the direct and managed mount APIs, backends provide a resource
     - For the migration API, backends are also used to store a local copy of the resource

@@ -51,6 +51,14 @@ The path frontend is the simplest one; it simply exposes a resource as a block d
 
 > ⚠️ Note that the Go garbage collector is currently known to [cause deadlocks in some cases with the slice frontend](https://pojntfx.github.io/networked-linux-memsync/main.html#limitations) if the application using it runs in the same process. To work around this, prefer using the file frontend, or make sure that the client application is started in a separate process if the slice frontend is being used.
 
+### Direct Mounts, Managed Mounts and Pull Priority
+
+Direct mounts serve as the simplest mount API, and allow directly mapping a resource into memory. These mounts can be either read-only or read-write, and simply forwards reads/writes between a backend (such as a S3 bucket) and the memory region/frontend. Direct mounts work well in LAN deployments, but since chunks are only fetched from the backend as they are being accessed, and writes are immediately forwarded to the backend too, this can lead to performance issues in high-latency deployments like the public internet, since reads need to be synchronous.
+
+In contrast to this, the managed mount API allows for smart background pull and push mechanisms. This makes it possible to pre-emptively fetch chunks before they are being accessed, and writing back changes periodically. Since this can be done concurrently and asynchronously, managed mounts are much less vulnerable to networks with high RTT like the internet, where they [can significantly increase throughput and decrease access latency](https://pojntfx.github.io/networked-linux-memsync/main.html#access-methods), allowing for deployment in WAN.
+
+Managed mounts also allow for the use of a [pull priority function](https://pojntfx.github.io/networked-linux-memsync/main.html#background-pull-and-push); this allows an application to specify which chunks should be pulled first and in which order, which can be used to further increase throughput and decrease latency by having the most important chunks be available as quickly as possible. This is particularly useful if the resource has a known structure: For example, if the metadata is available at the end of a media file but needs to be available first to start playback, the pull priority function can [help optimize the pull process without having to change the format or re-encoding](https://pojntfx.github.io/networked-linux-memsync/main.html#universal-database-media-and-asset-streaming).
+
 ## License
 
 r3map (c) 2023 Felicitas Pojtinger and contributors
