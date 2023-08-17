@@ -11,8 +11,6 @@ Re**m**ote **mm**ap: High-performance remote memory region mounts and migrations
 
 ## Overview
 
-🚧 This project is a work-in-progress! Instructions will be added as soon as it is usable. 🚧
-
 r3map enables high-performance remote memory region mounts and migrations in user space.
 
 It enables you to ...
@@ -34,6 +32,10 @@ You can add r3map to your Go project by running the following:
 ```shell
 $ go get github.com/pojntfx/r3map/...@latest
 ```
+
+## Usage
+
+🚧 This project is a work-in-progress! Instructions will be added as soon as it is usable. 🚧
 
 ## Reference
 
@@ -83,6 +85,50 @@ Since the interface is so simple, it is possible to represent almost any resourc
 - [RPC](pkg/backend/rpc.go): Exposes any backend over an RPC framework of choice, such as gRPC
 
 Different backends tend to have different characteristics, and behave [differently depending on network conditions and access patterns](https://pojntfx.github.io/networked-linux-memsync/main.html#backends). Depending on the backend used, it might also require a chunking system, which [can be implemented on both the client and server side](https://pojntfx.github.io/networked-linux-memsync/main.html#chunking-3); see the [mount benchmarks](./cmd/r3map-benchmark-managed-mount/main.go) for more information.
+
+## Examples
+
+To make getting started with r3map easier, take a look at the following simple usage examples:
+
+- [Direct and Managed Mount Example Server (gRPC-based)](./cmd/r3map-example-mount-server/main.go)
+- [Direct Mount Example Client (gRPC-based)](./cmd/r3map-example-direct-mount/main.go)
+- [Managed Mount Example Client (gRPC-based)](./cmd/r3map-example-managed-mount/main.go)
+- [Migration Example (gRPC-based)](./cmd/r3map-example-migration/main.go)
+
+The benchmarks also serve as much more detailed examples, highlighting different configuration options, transports and backends:
+
+- [Direct and Managed Mount Benchmark Server](./cmd/r3map-benchmark-mount-server/main.go)
+- [Direct Mount Benchmark](./cmd/r3map-benchmark-direct-mount/main.go)
+- [Managed Mount Benchmark](./cmd/r3map-benchmark-managed-mount/main.go)
+- [Migration Benchmark Server](./cmd/r3map-benchmark-migration-server/main.go)
+- [Migration Benchmark](./cmd/r3map-benchmark-migration/main.go)
+
+## Related Projects
+
+- [tapisk](https://github.com/pojntfx/tapisk) exposes a tape drive as a block device using r3map's managed mounts and chunking system.
+- [ram-dl](https://github.com/pojntfx/ram-dl) uses r3map to share RAM/swap space between two hosts with direct mounts.
+
+## Acknowledgements
+
+- [pojntfx/go-bd](https://github.com/pojntfx/go-nbd) provides the Go NBD client and server.
+- [pojntfx/dudirekta](https://github.com/pojntfx/dudirekta) provides one of the example RPC frameworks for mounts and migrations.
+- [gRPC](https://grpc.io/) provides a reliable RPC framework for mounts and migrations.
+- [fRPC](https://frpc.io/) provides a high-performance RPC framework for mounts and migrations.
+
+## Contributing
+
+To contribute, please use the [GitHub flow](https://guides.github.com/introduction/flow/) and follow our [Code of Conduct](./CODE_OF_CONDUCT.md).
+
+To build and start a development version of one of the examples locally, run the following:
+
+```shell
+$ git clone https://github.com/pojntfx/r3map.git
+$ cd go-nbd
+
+# TODO: Add contribution commands from scratchpad
+```
+
+Have any questions or need help? Chat with us [on Matrix](https://matrix.to/#/#r3map:matrix.org?via=matrix.org)!
 
 ## License
 
