@@ -1,4 +1,43 @@
 - Usage
-  - Mapping a remote resource into memory with the Direct Mount API
+  - Mapping a resource into memory with the Direct Mount API
+    - Mention what a mount is (link to FAQ)
+    - Choosing/defining a backend (link to backends FAQ; use file backend, mention chunking)
+    - Creating the file mount, choosing a frontend (link to FAQ), launching it
+    - Before we start the example, link to full server and client example, and more exhaustive benchmark examples
+    - Starting the file mount (in terminal)
+    - Interacting with the file mount (logging name to file path, which can then be used)
   - Efficiently mounting a remote resource with the Managed Mount API
+    - Mention why for remote resources, managed mounts are best, and role of pull priority func (link to FAQ)
+    - Choosing a backend for the server
+    - Creating the server, mention gRPC, fRPC and dudirekta as server options (link to thesis and mount server example)
+    - Starting the server (in terminal)
+    - `dial`ing the server in the client
+    - Creating the local backend (file-based; mention that any backend can be used, its just for cache, link to FAQ list)
+    - Mention that once again multiple frontends can be chosen, link to FAQ
+    - Creating the file mount and launching it
+    - Before we start the example, link to full server and client example, and more exhaustive benchmark examples
+    - Starting the file mount server and client (in terminal)
+    - Interacting with the file mount (logging name to file path, which can then be used)
   - Migrating a memory region between two hosts with the Migration API
+    - Short difference between mount and migration (link to FAQ)
+    - Mention that migrations are P2P (so there are no client-server), and that we're using gRPC but that there are other options
+    - Creating the migrator, which is both a seeder (makes a resource available) and leecher (makes it possible to download a resource)
+    - Mention that once again multiple frontends can be chosen, link to FAQ
+    - Mention the hooks, which can be used to display progress, and tell the app that uses the resource to suspend or resume
+    - Mention the backend choice (file) which will be used on both ends to store the resource
+    - Launching the seeder with Seed(), and starting the gRPC server (if the listen address is not empty)
+    - Mention that we are waiting for a key press, after which we simulate reads/writes to/from the resource by the application
+    - Dialing the leecher with gRPC, and launching the leecher with Leech()
+    - Waiting for a keypress to finalize the migration (mention what that does)
+    - (Optional) if the user also supplied a listen address, start seeding again, so that the resource can be migrated away from the device again
+    - Before we start, link to full code example
+    - Starting a seeder in the terminal
+    - Interacting with the resource
+    - Starting the leecher in a second terminal (with a laddr)
+    - Watching the progress of the migration, deciding to finalize the migration, noticing how it has started seeding again
+    - Interacting with the resource now on the leecher
+    - Starting another leecher in a second terminal (without a laddr this time)
+    - Watching progress and finalizing the migration
+    - Noticing how no seeder is started
+    - Interacting with the resource
+    - "That's it! We hope ... and take a look at the reference and thesis" note

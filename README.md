@@ -131,7 +131,7 @@ $ sudo modprobe nbd
 # Run unit tests
 $ make test
 
-# Build integration tests
+# Build integration tests/benchmarks
 $ make -j$(nproc)
 # Run integration tests/benchmarks
 $ sudo make integration
