@@ -1,12 +1,12 @@
 - Usage
-  - Mapping a resource into memory with the Direct Mount API
+  - Mapping a Remote Resource into Memory with the Direct Mount API
     - Mention what a mount is (link to FAQ)
     - Choosing/defining a backend (link to backends FAQ; use file backend, mention chunking)
     - Creating the file mount, choosing a frontend (link to FAQ), launching it
     - Before we start the example, link to full server and client example, and more exhaustive benchmark examples
     - Starting the file mount (in terminal)
     - Interacting with the file mount (logging name to file path, which can then be used)
-  - Efficiently mounting a remote resource with the Managed Mount API
+  - Efficiently Mounting a Remote Resource with the Managed Mount API
     - Mention why for remote resources, managed mounts are best, and role of pull priority func (link to FAQ)
     - Choosing a backend for the server
     - Creating the server, mention gRPC, fRPC and dudirekta as server options (link to thesis and mount server example)
@@ -18,7 +18,7 @@
     - Before we start the example, link to full server and client example, and more exhaustive benchmark examples
     - Starting the file mount server and client (in terminal)
     - Interacting with the file mount (logging name to file path, which can then be used)
-  - Migrating a memory region between two hosts with the Migration API
+  - Migrating a Memory Region Between Two Hosts with the Migration API
     - Short difference between mount and migration (link to FAQ)
     - Mention that migrations are P2P (so there are no client-server), and that we're using gRPC but that there are other options
     - Creating the migrator, which is both a seeder (makes a resource available) and leecher (makes it possible to download a resource)
