@@ -110,7 +110,7 @@ log.Println("Resource available on", file.Name())
 wg.Wait()
 ```
 
-Note that the interrupt signal has been intercepted to gracefully close the mount, which helps prevent data loss when stopping the process. Here, the file provided by the file frontend is simply used to print the path to the resource; in real-world scenarios, the file (or `[]byte`) provided can be interacted with directly. The mount can then be started like this, and should output the following; see the [full code for the example for more](./cmd/r3map-example-direct-mount-file/main.go):
+Note that the interrupt signal has been intercepted to gracefully close the mount, which helps prevent data loss when stopping the process. Here, the file provided by the file frontend is simply used to print the path to the resource; in real-world scenarios, the file (or `[]byte`) provided can be interacted with directly. The mount can then be started like this, and should output the following; see the [full code of the example for more](./cmd/r3map-example-direct-mount-file/main.go):
 
 ```shell
 $ sudo modprobe nbd # This is only necessary once, and loads the NBD kernel module
@@ -176,7 +176,7 @@ if err := srv.Serve(lis); err != nil && !utils.IsClosedErr(err) {
 }
 ```
 
-The server can then be started like this, and should output the following; see the [full code for the example for more](./cmd/r3map-example-mount-server/main.go):
+The server can then be started like this, and should output the following; see the [full code of the example for more](./cmd/r3map-example-mount-server/main.go):
 
 ```shell
 $ go run ./cmd/r3map-example-mount-server/
@@ -261,7 +261,7 @@ log.Println("Resource available on", file.Name())
 wg.Wait()
 ```
 
-Just like with the direct mount API, the interrupt signal has been intercepted to gracefully close the mount, which helps prevent data loss when stopping the process by flushing the remaining changes to the backend. Here, the file provided by the file frontend is simply used to print the path to the resource; in real-world scenarios, the file (or `[]byte`) provided can be interacted with directly. Just like with the direct mount, the mount can then be started like this, and should output the following; see the [full code for the example for more](./cmd/r3map-example-managed-mount-file/main.go):
+Just like with the direct mount API, the interrupt signal has been intercepted to gracefully close the mount, which helps prevent data loss when stopping the process by flushing the remaining changes to the backend. Here, the file provided by the file frontend is simply used to print the path to the resource; in real-world scenarios, the file (or `[]byte`) provided can be interacted with directly. Just like with the direct mount, the mount can then be started like this, and should output the following; see the [full code of the example for more](./cmd/r3map-example-managed-mount-file/main.go):
 
 ```shell
 $ sudo modprobe nbd # This is only necessary once, and loads the NBD kernel module
@@ -372,7 +372,7 @@ if err != nil {
 log.Println("Starting app on", file.Name())
 ```
 
-The resulting service can then be attached to a gRPC server, making it available over a network:
+The resulting file can be used to interact with the resource just like with mounts, and the service can then be attached to a gRPC server, making it available over a network:
 
 ```go
 server := grpc.NewServer()
@@ -442,7 +442,87 @@ if err != nil {
 }
 ```
 
-This will start leeching the resource in the background, and the `OnChunkLocal` callback can be used to monitor the download progress. In order to "finalize" the migration, which tells the seeder to suspend the application using the resource and sends marks chunks that were changed since the migration started as "dirty", we can call `finalize()` once the <kbd>Enter</kbd> key is pressed.
+This will start leeching the resource in the background, and the `OnChunkLocal` callback can be used to monitor the download progress. In order to "finalize" the migration, which tells the seeder to suspend the application using the resource and sends marks chunks that were changed since the migration started as "dirty", we can call `finalize()` once the <kbd>Enter</kbd> key is pressed (for more information on the migration protocol, see the [Pull-Based Synchronization with Migrations](https://pojntfx.github.io/networked-linux-memsync/main.html#pull-based-synchronization-with-migrations) chapter in the accompanying thesis):
+
+```go
+log.Println("Press <ENTER> to finalize migration")
+
+bufio.NewScanner(os.Stdin).Scan()
+
+seed, file, err := finalize()
+if err != nil {
+	panic(err)
+}
+
+log.Println("Resuming app on", file.Name())
+```
+
+The resulting file can be used to interact with the resource, just like with mounts. It is also possible to for a leecher to start seeding the resource; this works by calling the resulting `seed()` closure, and attaching it to a gRPC server just like when calling `Seed()` on the migrator:
+
+```go
+svc, err := seed()
+if err != nil {
+	panic(err)
+}
+
+server := grpc.NewServer()
+// ...
+```
+
+To demonstrate the migration, a seeder can now be started like this (with the migrating being instructed to seed by providing `--laddr`), and should output the following; see the [full code of the example for more, which covers both the seeder and the leecher](./cmd/r3map-example-migration/main.go):
+
+```shell
+$ sudo modprobe nbd # This is only necessary once, and loads the NBD kernel module
+$ go build -o /tmp/r3map-example-migration ./cmd/r3map-example-migration/ && sudo /tmp/r3map-example-migration --laddr localhost:1337 --invalidate 10
+2023/08/20 00:27:19 Starting app on /dev/nbd0
+2023/08/20 00:27:19 Seeding on localhost:1337
+2023/08/20 00:27:19 Press <ENTER> to invalidate resource
+```
+
+This makes the resource available on the specified path, and starts seeding; invalidating the resource (which simulates an application using it) is also possible by pressing <kbd>Enter</kbd>. To start migrating the application away from this first seeder, a leecher can be started by specifying a `--raddr`:
+
+```shell
+$ sudo modprobe nbd # This is only necessary once, and loads the NBD kernel module
+$ go build -o /tmp/r3map-example-migration ./cmd/r3map-example-migration/ && sudo /tmp/r3map-example-migration --raddr localhost:1337 --laddr localhost:1337 --invalidate 10
+2023/08/20 01:05:32 Leeching from localhost:1337
+2023/08/20 01:05:32 Press <ENTER> to finalize migration
+Pulling 100% [==============================================] (512/512 MB, 510 MB/s) [1s:0s]
+```
+
+This starts pulling chunks in the background, and the migration can be finalized by pressing <kbd>Enter</kbd>:
+
+```shell
+2023/08/20 01:06:38 Invalidated: 0.00 MB (0.00 Mb)
+2023/08/20 01:06:38 Resuming app on /dev/nbd1
+2023/08/20 01:06:38 Seeding on localhost:1337
+2023/08/20 01:06:38 Press <ENTER> to invalidate resource
+```
+
+The resource can now be interacted with on the provided path. Since the `--laddr` flag was also provided, the resource is also being seeded, which makes it possible to migrate it to another leecher, this time not enabling the seeder mode by not specifying `--laddr`, and once again finalizing the migration with <kbd>Enter</kbd>:
+
+```shell
+$ sudo modprobe nbd # This is only necessary once, and loads the NBD kernel module
+$ go build -o /tmp/r3map-example-migration ./cmd/r3map-example-migration/ && sudo /tmp/r3map-example-migration --raddr localhost:1337
+2023/08/20 01:10:52 Leeching from localhost:1337
+2023/08/20 01:10:52 Press <ENTER> to finalize migration
+Pulling 100% [==============================================] (512/512 MB, 508 MB/s) [1s:0s]
+
+2023/08/20 01:10:58 Invalidated: 0.00 MB (0.00 Mb)
+2023/08/20 01:10:58 Resuming app on /dev/nbd1
+```
+
+The resource can now be interacted as though it were any file again, for example by reading and writing a string to/from it; no additional seeder has been started, thus terminating the migration chain:
+
+```shell
+$ echo 'Hello, world!' | sudo tee /dev/nbd0
+Hello, world!
+$ sudo cat /dev/nbd0
+Hello, world!
+```
+
+For more information on the migration, as well as available configuration options, usage examples for different frontends and backends, see the [migration benchmark](./cmd/r3map-benchmark-migration/main.go) and [migration Go API reference](https://pkg.go.dev/github.com/pojntfx/r3map/pkg/migration#FileMigrator).
+
+🚀 That's it! We can't wait to see what you're going to build with r3map. Be sure to take a look at the [reference](#reference), [additional examples](#examples), [real-world applications using r3map](#related-projects) and the [accompanying research paper](https://pojntfx.github.io/networked-linux-memsync/main.pdf) for more information.
 
 ## Reference
 
