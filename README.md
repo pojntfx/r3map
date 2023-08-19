@@ -281,13 +281,176 @@ Hello, world!
 
 Note that if the client is stopped and started again, the resource will continue to be available. For more information on the managed mount, as well as available configuration options, usage examples for different frontends and backends, see the [managed mount benchmark](./cmd/r3map-benchmark-managed-mount/main.go) and [managed mount Go API reference](https://pkg.go.dev/github.com/pojntfx/r3map/pkg/mount#ManagedFileMount).
 
+### 3. Migrating a Memory Region Between Two Hosts with the Migration API
+
+While mounts offer a universal method for accessing resources, migrations are optimized for scenarios that involve moving a resource between two hosts. This is because they use a two-phase protocol to minimize the time the resource is unavailable during migration (see the [mounts and migrations reference](#mounts-and-migrations) for more information). Migrations are also peer-to-peer, meaning that no intermediary/remote backend is required, which reduces the impact of latency on the migration. There are two actors in a migration: The seeder, from which a resource can be migrated from, and a leecher, which migrates a resource to itself. Similarly to mounts, different frontends (such as `[]byte` or the file frontend), backends (for locally storing the resource) and transports (like gRPC) can be chosen; for this example, we'll start by creating a migrator (the component that handles both seeding and leeching) with a file frontend, file backend and gRPC transport:
+
+```go
+f, err := os.CreateTemp("", "")
+if err != nil {
+	panic(err)
+}
+defer os.RemoveAll(f.Name())
+
+if err := f.Truncate(*size); err != nil {
+	panic(err)
+}
+
+mgr := migration.NewFileMigrator(
+	ctx,
+
+	backend.NewFileBackend(f),
+
+	&migration.MigratorOptions{
+		Verbose: *verbose,
+	},
+	&migration.MigratorHooks{
+		OnBeforeSync: func() error {
+			log.Println("Suspending app")
+
+			return nil
+		},
+		OnAfterSync: func(dirtyOffsets []int64) error {
+			delta := (len(dirtyOffsets) * client.MaximumBlockSize)
+
+			log.Printf("Invalidated: %.2f MB (%.2f Mb)", float64(delta)/(1024*1024), (float64(delta)/(1024*1024))*8)
+
+			return nil
+		},
+
+		OnBeforeClose: func() error {
+			log.Println("Stopping app")
+
+			return nil
+		},
+
+		OnChunkIsLocal: func(off int64) error {
+			log.Printf("Chunk %v has been leeched")
+
+			return nil
+		},
+	},
+
+	nil,
+	nil,
+)
+```
+
+Note the use of the hook functions; these allow for integration the migration with the application lifecycle, and can be used for notifying an application which is accessing to suspend or shut down access to the resource when the migration lifecycle requires it, as well as monitoring the migration progress with `OnChunkIsLocal`. The migrator can be started similarly to how the mounts are started, including registering the interrupt handler to prevent data loss on exit:
+
+```go
+var wg sync.WaitGroup
+wg.Add(1)
+go func() {
+	defer wg.Done()
+
+	if err := mgr.Wait(); err != nil {
+		panic(err)
+	}
+}()
+
+done := make(chan os.Signal, 1)
+signal.Notify(done, os.Interrupt)
+go func() {
+	<-done
+
+	log.Println("Exiting gracefully")
+
+	_ = mgr.Close()
+}()
+```
+
+Note that the migrator is able to both seed and leech a resource; to start seeding, call `Seed()` on the migrator:
+
+```go
+defer mgr.Close()
+file, svc, err := mgr.Seed()
+if err != nil {
+	panic(err)
+}
+
+log.Println("Starting app on", file.Name())
+```
+
+The resulting service can then be attached to a gRPC server, making it available over a network:
+
+```go
+server := grpc.NewServer()
+
+v1.RegisterSeederServer(server, services.NewSeederServiceGrpc(svc))
+
+lis, err := net.Listen("tcp", *laddr)
+if err != nil {
+	panic(err)
+}
+defer lis.Close()
+
+log.Println("Seeding on", *laddr)
+
+go func() {
+	if err := server.Serve(lis); err != nil {
+		if !utils.IsClosedErr(err) {
+			panic(err)
+		}
+
+		return
+	}
+}()
+```
+
+Finally, we register an invalidation handler for this example; this allows simulating writes done by the application using a resource as it is being seeded by pressing <kbd>Enter</kbd>:
+
+```go
+go func() {
+	log.Println("Press <ENTER> to invalidate resource")
+
+	bufio.NewScanner(os.Stdin).Scan()
+
+	log.Println("Invalidating resource")
+
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		panic(err)
+	}
+
+	if _, err := io.CopyN(
+		file,
+		rand.Reader,
+		int64(math.Floor(
+			float64(*size)*(float64(*invalidate)/float64(100)),
+		)),
+	); err != nil {
+		panic(err)
+	}
+}()
+```
+
+Setting up a leecher is similar to setting up a seeder, and starts by connecting to the gRPC server provided by the seeder as well as calling `Leech()` on the migrator:
+
+```go
+conn, err := grpc.Dial(*raddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+if err != nil {
+	panic(err)
+}
+defer conn.Close()
+
+log.Println("Leeching from", *raddr)
+
+defer mgr.Close()
+finalize, err := mgr.Leech(services.NewSeederRemoteGrpc(v1.NewSeederClient(conn)))
+if err != nil {
+	panic(err)
+}
+```
+
+This will start leeching the resource in the background, and the `OnChunkLocal` callback can be used to monitor the download progress. In order to "finalize" the migration, which tells the seeder to suspend the application using the resource and sends marks chunks that were changed since the migration started as "dirty", we can call `finalize()` once the <kbd>Enter</kbd> key is pressed.
+
 ## Reference
 
 ### Mounts and Migrations
 
 There are two fundamental use cases for r3map: Mounts and migrations. Mounting refers to accessing a resource, where the resource (such as a S3 bucket, remote file or memory region, tape drive etc.) is made available locally as either read-only or read-write, without having to download the entire resource first. Mounts work similarly to `mmap`, except the can map almost any resource into memory, not just files. To learn more about mounts, see the [Push-Pull Synchronization with Mounts](https://pojntfx.github.io/networked-linux-memsync/main.html#push-pull-synchronization-with-mounts) chapter in the accompanying thesis.
 
-Migration refers to moving a resource like a memory region and moving it from one host to another. While mounts are optimized to have low initialization latencies and the best possible throughput performance, migrations are optimized to have the smallest possible downtime, where downtime refers to the typically short period in the migration process where neither the source nor the destination host can write to the resource that is being migrated. To optimize for this, migrations have a two-phase protocol which splits the device initialization and critical migration phases into two distinct parts, which keeps downtime to a minimum. To learn more about mounts, see the [Pull-Based Synchronization with Migrations](https://pojntfx.github.io/networked-linux-memsync/main.html#pull-based-synchronization-with-migrations) chapter in the accompanying thesis.
+Migration refers to moving a resource like a memory region and moving it from one host to another. While mounts are optimized to have low initialization latencies and the best possible throughput performance, migrations are optimized to have the smallest possible downtime, where downtime refers to the typically short period in the migration process where neither the source nor the destination host can write to the resource that is being migrated. To optimize for this, migrations have a two-phase protocol which splits the device initialization and critical migration phases into two distinct parts, which keeps downtime to a minimum. To learn more about migrations, see the [Pull-Based Synchronization with Migrations](https://pojntfx.github.io/networked-linux-memsync/main.html#pull-based-synchronization-with-migrations) chapter in the accompanying thesis.
 
 ### Path, Slice and File Frontends
 
