@@ -110,9 +110,10 @@ log.Println("Resource available on", file.Name())
 wg.Wait()
 ```
 
-Note that the interrupt signal has been intercepted to gracefully close the mount, which helps prevent data loss when stopping the process. Here, the file provided by the file frontend is simply used to print the path to the resource; in real-world scenarios, the file (or `[]byte`) provided can be interacted with directly. The mount can then be started like this, and should output the following; see the [full code for the example for more](./cmd/r3map-example-direct-mount-file/):
+Note that the interrupt signal has been intercepted to gracefully close the mount, which helps prevent data loss when stopping the process. Here, the file provided by the file frontend is simply used to print the path to the resource; in real-world scenarios, the file (or `[]byte`) provided can be interacted with directly. The mount can then be started like this, and should output the following; see the [full code for the example for more](./cmd/r3map-example-direct-mount-file/main.go):
 
 ```shell
+$ sudo modprobe nbd # This is only necessary once, and loads the NBD kernel module
 $ go build -o /tmp/r3map-example-direct-mount-file ./cmd/r3map-example-direct-mount-file/ && sudo /tmp/r3map-example-direct-mount-file
 2023/08/18 16:39:18 Resource available on /dev/nbd0
 ```
@@ -126,7 +127,159 @@ $ sudo cat /dev/nbd0
 Hello, world!
 ```
 
-For more information on the file mount, as well as available configuration options and usage examples for different frontends and backends, as well as using a remote resource instead of a local one, see the [direct mount benchmark](./cmd/r3map-benchmark-direct-mount/main.go) and [direct mount Go API reference](https://pkg.go.dev/github.com/pojntfx/r3map/pkg/mount#DirectFileMount).
+For more information on the direct mount, as well as available configuration options, usage examples for different frontends and backends, and using a remote resource instead of a local one, see the [direct mount benchmark](./cmd/r3map-benchmark-direct-mount/main.go) and [direct mount Go API reference](https://pkg.go.dev/github.com/pojntfx/r3map/pkg/mount#DirectFileMount).
+
+### 2. Efficiently Mounting a Remote Resource with the Managed Mount API
+
+While the direct mount API is a good choice for mounting a resource if there is little to no latency, the managed mount API is the better choice if the resource is remote, esp. in networks with high latencies such as the public internet. Instead of the reads and writes being forwarded synchronously to the backend, the asynchronous background push- and pull system can take advantage of multiple connections and concurrent push/pull to significantly increase throughput and decrease access latency, as well as pre-emptively pulling specific offsets first (see the [mounts reference](#direct-mounts-managed-mounts-and-pull-priority) for more information).
+
+While it is possible to use, [any of the available backends](#backends) or creating a custom one, we'll be creating a client and server system, where a gRPC server exposes a resource backed by a file, and a managed mount uses a gRPC client to mount the resource. Note that since r3map is fully transport independent, there are other options available as well, such as fRPC and dudirekta, which [can have different characteristics depending on network conditions and other factors](https://pojntfx.github.io/networked-linux-memsync/main.html#rpc-frameworks-1). To create the server exposing the resource, first the backend and gRPC need to be set up:
+
+```go
+f, err := os.CreateTemp("", "")
+if err != nil {
+	panic(err)
+}
+defer os.RemoveAll(f.Name())
+
+if err := f.Truncate(*size); err != nil {
+	panic(err)
+}
+
+srv := grpc.NewServer()
+
+v1.RegisterBackendServer(
+	srv,
+	services.NewBackendServiceGrpc(
+		services.NewBackend(
+			backend.NewFileBackend(f),
+			*verbose,
+			services.MaxChunkSize,
+		),
+	),
+)
+```
+
+After both are available, the server is attached to a TCP listener:
+
+```go
+lis, err := net.Listen("tcp", *laddr)
+if err != nil {
+	panic(err)
+}
+defer lis.Close()
+
+log.Println("Listening on", *laddr)
+
+if err := srv.Serve(lis); err != nil && !utils.IsClosedErr(err) {
+	panic(err)
+}
+```
+
+The server can then be started like this, and should output the following; see the [full code for the example for more](./cmd/r3map-example-mount-server/main.go):
+
+```shell
+$ go run ./cmd/r3map-example-mount-server/
+2023/08/19 18:32:26 Listening on localhost:1337
+```
+
+On the client side, we connect to this server and set up a local backend (which caches backgrounds reads/writes; here we use a simple file backend, but any backend can be used):
+
+```go
+f, err := os.CreateTemp("", "")
+if err != nil {
+	panic(err)
+}
+defer os.RemoveAll(f.Name())
+
+if err := f.Truncate(*size); err != nil {
+	panic(err)
+}
+
+conn, err := grpc.Dial(*raddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+if err != nil {
+	panic(err)
+}
+defer conn.Close()
+
+log.Println("Connected to", *raddr)
+```
+
+Similarly to direct mounts, any frontend can be chosen (such as the `[]byte` frontend), but for simplicity we'll use the file frontend here, which can be started like this:
+
+```go
+mnt := mount.NewManagedFileMount(
+	ctx,
+
+	lbackend.NewRPCBackend(
+		ctx,
+		services.NewBackendRemoteGrpc(
+			v1.NewBackendClient(conn),
+		),
+		*size,
+		false,
+	),
+	backend.NewFileBackend(f),
+
+	&mount.ManagedMountOptions{
+		Verbose: *verbose,
+	},
+	nil,
+
+	nil,
+	nil,
+)
+
+var wg sync.WaitGroup
+wg.Add(1)
+go func() {
+	defer wg.Done()
+
+	if err := mnt.Wait(); err != nil {
+		panic(err)
+	}
+}()
+
+done := make(chan os.Signal, 1)
+signal.Notify(done, os.Interrupt)
+go func() {
+	<-done
+
+	log.Println("Exiting gracefully")
+
+	_ = mnt.Close()
+}()
+
+defer mnt.Close()
+file, err := mnt.Open()
+if err != nil {
+	panic(err)
+}
+
+log.Println("Resource available on", file.Name())
+
+wg.Wait()
+```
+
+Just like with the direct mount API, the interrupt signal has been intercepted to gracefully close the mount, which helps prevent data loss when stopping the process by flushing the remaining changes to the backend. Here, the file provided by the file frontend is simply used to print the path to the resource; in real-world scenarios, the file (or `[]byte`) provided can be interacted with directly. Just like with the direct mount, the mount can then be started like this, and should output the following; see the [full code for the example for more](./cmd/r3map-example-managed-mount-file/main.go):
+
+```shell
+$ sudo modprobe nbd # This is only necessary once, and loads the NBD kernel module
+$ go build -o /tmp/r3map-example-managed-mount-client ./cmd/r3map-example-managed-mount-client/ && sudo /tmp/r3map-example-managed-mount-client
+2023/08/19 18:59:16 Connected to localhost:1337
+2023/08/19 18:59:16 Resource available on /dev/nbd0
+```
+
+The resource can now be interacted as though it were any file, for example by reading and writing a string to/from it:
+
+```shell
+$ echo 'Hello, world!' | sudo tee /dev/nbd0
+Hello, world!
+$ sudo cat /dev/nbd0
+Hello, world!
+```
+
+Note that if the client is stopped and started again, the resource will continue to be available. For more information on the managed mount, as well as available configuration options, usage examples for different frontends and backends, see the [managed mount benchmark](./cmd/r3map-benchmark-managed-mount/main.go) and [managed mount Go API reference](https://pkg.go.dev/github.com/pojntfx/r3map/pkg/mount#ManagedFileMount).
 
 ## Reference
 
@@ -235,10 +388,9 @@ $ go build -o /tmp/r3map-example-migration ./cmd/r3map-example-migration/ && sud
 
 # Run the mount examples
 $ go build -o /tmp/r3map-example-direct-mount-file ./cmd/r3map-example-direct-mount-file/ && sudo /tmp/r3map-example-direct-mount-file # Mounts a temporary file with a direct mount
-$ go build -o /tmp/r3map-example-mount-server ./cmd/r3map-example-mount-server/ && sudo /tmp/r3map-example-mount-server # Starts the server exposing the resource
+$ go run ./cmd/r3map-example-mount-server/ # Starts the server exposing the resource
 $ go build -o /tmp/r3map-example-direct-mount-client ./cmd/r3map-example-direct-mount-client/ && sudo /tmp/r3map-example-direct-mount-client # Mounts the resource with a direct mount
 $ go build -o /tmp/r3map-example-managed-mount-client ./cmd/r3map-example-managed-mount-client/ && sudo /tmp/r3map-example-managed-mount-client # Mounts the resource with a managed mount
-
 ```
 
 Have any questions or need help? Chat with us [on Matrix](https://matrix.to/#/#r3map:matrix.org?via=matrix.org)!
