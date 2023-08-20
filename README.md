@@ -11,19 +11,21 @@ Re**m**ote **mm**ap: High-performance remote memory region mounts and migrations
 
 ## Overview
 
-r3map enables high-performance remote memory region mounts and migrations in user space.
+r3map is a library that simplifies working with remote memory regions and migrating them between hosts.
 
-It enables you to ...
+It can ...
 
-- **Mount and migrate memory regions with a unified API**: r3map provides a consistent API, no matter if a memory region should simply be accessed or migrated between hosts.
-- **Expose a resource with multiple frontends**: By providing multiple interfaces (such as a memory region and a file/path) for accessing or migrating a resource, integrating remote memory into existing applications is possible with little to no changes.
-- **Transparently map almost any resource into memory, only fetching chunks as they are being read**: By exposing a simple backend interface and being fully transport-independent, r3map makes it possible to map resources such as a S3 bucket, Cassandra or Redis database, or even a tape drive into a memory region efficiently, as well as migrating a region over a framework and protocol of your choice, such as gRPC.
-- **Use remote memory without the associated overhead**: Despite being in user space, r3map manages (on a [typical desktop system](https://pojntfx.github.io/networked-linux-memsync/main.html#testing-environment)) to achieve **high throughput (up to 3 GB/s)** with **minimal access latencies (~100µs)** and **short initialization times (~15ms)**.
-- **Adapt to challenging network environments**: By implementing various optimizations such as background pull and push, two-phase protocols for migrations and concurrent device initialization, r3map can be deployed both in low-latency, high-throughput local datacenter networks and more constrained networks like the public internet.
+- **Create a `[]byte` or virtual file that transparently downloads remote chunks only as they are being accessed**: By providing multiple frontends (such as a memory region and a file/path) for accessing or migrating a resource, integrating remote memory into existing applications is possible with little to no changes.
+- **`mmap` any local or remote resource instead of just files**: By exposing a simple backend interface and being fully transport-independent, r3map makes it possible to map resources such as a **S3 bucket, Cassandra or Redis database**, or even a tape drive into a memory region efficiently, as well as migrating it over an RPC framework of your choice, such as gRPC.
+- **Enable VM live migration, but for any hypervisor or application**: r3map implements the APIs which allow for zero-downtime live migration of virtual machines, but makes them generic so that they can be used for any memory region, bringing them to almost any hypervisor or application with minimal changes and overhead.
+- **Overcome the performance issues typically associated with remote memory**: Despite being in user space, r3map manages (on a [typical desktop system](https://pojntfx.github.io/networked-linux-memsync/main.html#testing-environment)) to achieve **high throughput (up to 3 GB/s)** with **minimal access latencies (~100µs)** and **short initialization times (~12ms)**.
+- **Adapt to challenging network environments**: By implementing various optimizations such as **background pull and push**, two-phase protocols for migrations and concurrent device initialization, r3map can be deployed not only in low-latency, high-throughput local datacenter networks but also in more constrained networks like the public internet.
 
-The project is accompanied by a scientific thesis, which provides additional insights into design decisions, the internals of its implementation and comparisons to existing technologies and alternative approaches:
+The project is **accompanied by a scientific thesis**, which provides additional insights into design decisions, the internals of its implementation and comparisons to existing technologies and alternative approaches:
 
-[<img src="./docs/thesis-badge.png" alt="Thesis badge for Pojtinger, F. (2023). Efficient Synchronization of Linux Memory Regions over a Network: A Comparative Study and Implementation" height="60" align="center">](https://pojntfx.github.io/networked-linux-memsync/main.pdf)
+<p align="center">
+	<a href="https://pojntfx.github.io/networked-linux-memsync/main.pdf" rel="nofollow"><img src="./docs/thesis-badge.png" alt="Thesis badge for Pojtinger, F. (2023). Efficient Synchronization of Linux Memory Regions over a Network: A Comparative Study and Implementation" height="60"></a>
+</p>
 
 ## Installation
 
