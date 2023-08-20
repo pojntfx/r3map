@@ -136,6 +136,8 @@ func (s *FileSeeder) onBeforeClose() error {
 		if err := hook(); err != nil {
 			return err
 		}
+
+		s.hooks.OnBeforeClose = nil // Don't call close hook multiple times
 	}
 
 	if s.deviceFile != nil {

@@ -104,6 +104,8 @@ func (l *FileLeecher) onBeforeClose() error {
 		if err := hook(); err != nil {
 			return err
 		}
+
+		l.hooks.OnBeforeClose = nil // Don't call close hook multiple times
 	}
 
 	if !l.released && l.deviceFile != nil {

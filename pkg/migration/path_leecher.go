@@ -345,6 +345,8 @@ func (l *PathLeecher) Close() error {
 			if err := hook(); err != nil {
 				return err
 			}
+
+			l.hooks.OnBeforeClose = nil // Don't call close hook multiple times
 		}
 	}
 

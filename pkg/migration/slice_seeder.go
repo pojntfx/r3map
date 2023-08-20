@@ -153,6 +153,8 @@ func (s *SliceSeeder) onBeforeClose() error {
 		if err := hook(); err != nil {
 			return err
 		}
+
+		s.hooks.OnBeforeClose = nil // Don't call close hook multiple times
 	}
 
 	s.mmapMount.Lock()
