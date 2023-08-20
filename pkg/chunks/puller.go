@@ -127,6 +127,10 @@ func (p *Puller) Finalize(dirtyOffsets []int64) {
 	p.nextChunkAndFinalizedLock.Lock()
 	defer p.nextChunkAndFinalizedLock.Unlock()
 
+	if p.finalized {
+		return
+	}
+
 	p.chunkIndexesLock.Lock()
 	defer p.chunkIndexesLock.Unlock()
 

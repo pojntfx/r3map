@@ -448,6 +448,7 @@ This will start leeching the resource in the background, and the `OnChunkLocal` 
 log.Println("Press <ENTER> to finalize migration")
 
 bufio.NewScanner(os.Stdin).Scan()
+// ...
 
 seed, file, err := finalize()
 if err != nil {

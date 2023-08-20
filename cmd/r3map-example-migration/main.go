@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
@@ -121,10 +120,9 @@ func main() {
 		nil,
 	)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	finished := make(chan struct{})
 	go func() {
-		defer wg.Done()
+		defer close(finished)
 
 		if err := mgr.Wait(); err != nil {
 			panic(err)
@@ -162,7 +160,18 @@ func main() {
 
 		log.Println("Press <ENTER> to finalize migration")
 
-		bufio.NewScanner(os.Stdin).Scan()
+		continueCh := make(chan struct{})
+		go func() {
+			bufio.NewScanner(os.Stdin).Scan()
+
+			continueCh <- struct{}{}
+		}()
+
+		select {
+		case <-continueCh:
+		case <-finished:
+			return
+		}
 
 		seed, f, err := finalize()
 		if err != nil {
@@ -236,5 +245,5 @@ func main() {
 		}()
 	}
 
-	wg.Wait()
+	<-finished
 }

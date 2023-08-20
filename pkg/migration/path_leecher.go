@@ -353,6 +353,8 @@ func (l *PathLeecher) Close() error {
 	}
 
 	if l.puller != nil {
+		l.puller.Finalize([]int64{})
+
 		_ = l.puller.Close()
 	}
 
