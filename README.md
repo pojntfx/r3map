@@ -15,16 +15,16 @@ r3map is a library that simplifies working with remote memory regions and migrat
 
 It can ...
 
-- **Create a `[]byte` or virtual file that transparently downloads remote chunks only as they are being accessed**: By providing multiple frontends (such as a memory region and a file/path) for accessing or migrating a resource, integrating remote memory into existing applications is possible with little to no changes.
+- **Create a virtual `[]byte` or a virtual file that transparently downloads remote chunks only when they are accessed**: By providing multiple frontends (such as a memory region and a file/path) for accessing or migrating a resource, integrating remote memory into existing applications is possible with little to no changes, and fully language-independent.
 - **`mmap` any local or remote resource instead of just files**: By exposing a simple backend interface and being fully transport-independent, r3map makes it possible to map resources such as a **S3 bucket, Cassandra or Redis database**, or even a tape drive into a memory region efficiently, as well as migrating it over an RPC framework of your choice, such as gRPC.
-- **Enable VM live migration, but for any hypervisor or application**: r3map implements the APIs which allow for zero-downtime live migration of virtual machines, but makes them generic so that they can be used for any memory region, bringing them to almost any hypervisor or application with minimal changes and overhead.
-- **Overcome the performance issues typically associated with remote memory**: Despite being in user space, r3map manages (on a [typical desktop system](https://pojntfx.github.io/networked-linux-memsync/main.html#testing-environment)) to achieve **high throughput (up to 3 GB/s)** with **minimal access latencies (~100µs)** and **short initialization times (~12ms)**.
+- **Enable live migration features for any hypervisor or application**: r3map implements the APIs which allow for zero-downtime live migration of virtual machines, but makes them generic so that they can be used for any memory region, bringing live migration abilities to almost any hypervisor or application with minimal changes and overhead.
+- **Overcome the performance issues typically associated with remote memory**: Despite being in user space, r3map manages (on a [typical desktop system](https://pojntfx.github.io/networked-linux-memsync/main.html#testing-environment)) to achieve **very high throughput (up to 3 GB/s)** with **minimal access latencies (~100µs)** and **short initialization times (~12ms)**.
 - **Adapt to challenging network environments**: By implementing various optimizations such as **background pull and push**, two-phase protocols for migrations and concurrent device initialization, r3map can be deployed not only in low-latency, high-throughput local datacenter networks but also in more constrained networks like the public internet.
 
 The project is **accompanied by a scientific thesis**, which provides additional insights into design decisions, the internals of its implementation and comparisons to existing technologies and alternative approaches:
 
 <p align="center">
-	<a href="https://pojntfx.github.io/networked-linux-memsync/main.pdf" rel="nofollow"><img src="./docs/thesis-badge.png" alt="Thesis badge for Pojtinger, F. (2023). Efficient Synchronization of Linux Memory Regions over a Network: A Comparative Study and Implementation" height="60"></a>
+	<a href="https://pojntfx.github.io/networked-linux-memsync/main.pdf" rel="nofollow"><img src="./docs/thesis-badge.png" alt="Thesis badge for Pojtinger, F. (2023). Efficient Synchronization of Linux Memory Regions over a Network: A Comparative Study and Implementation" width="650"></a>
 </p>
 
 ## Installation
@@ -41,7 +41,7 @@ $ go get github.com/pojntfx/r3map/...@latest
 
 > TL;DR: Create a backend, find a free block device, start the direct mount and interact with the resource through a frontend of your choice (`[]byte`/file etc.)
 
-The direct mount API is the simplest way of accessing a resource. In order to make a resource available, either a custom backend can be created or one of the available example backends can be used (see the [backends reference](#backends) for more information), such as a S3 bucket or a Redis database. Similarly so, multiple frontends, which represent means to access a resource, are also available: The path frontend, which simply exposes the path to a block device with the resource, the file frontend, which exposes the resource by opening the block device and integrating the file's lifecycle, and the slice/`[]byte` frontend, which makes the resource available as a `[]byte`, **only fetching chunks from the backend as they are being accessed**. For the file frontend, this means that if call `.Read(offset, chunk)`, only `len(chunk)` at `offset` will be fetched, while for a slice, if you access `sliceFrontend[lowerBound:upperBound]`, only the chunks from `lowerBound` to `upperBound` will be fetched as they are being accessed. For more information, check out the [frontends reference](#path-slice-and-file-frontends).
+The direct mount API is the simplest way of accessing a resource. In order to make a resource available, either a custom backend can be created or one of the available example backends can be used (see the [backends reference](#backends) for more information), such as a S3 bucket or a Redis database. Similarly so, multiple frontends, which represent means to access a resource, are also available: The path frontend, which simply exposes the path to a block device with the resource, the file frontend, which exposes the resource by opening the block device and integrating the file's lifecycle, and the slice/`[]byte` frontend, which **makes the resource available as a `[]byte`, only fetching chunks from the backend as they are being accessed**. For the file frontend, this means that if call `.Read(offset, chunk)`, only `len(chunk)` at `offset` will be fetched, while for a slice, if you access `sliceFrontend[lowerBound:upperBound]`, only the chunks from `lowerBound` to `upperBound` will be fetched as they are being accessed. For more information, check out the [frontends reference](#path-slice-and-file-frontends).
 
 #### 1.1 Setting up a Backend
 
@@ -169,7 +169,7 @@ While the direct mount API is a good choice for mounting a resource if there is 
 <details>
   <summary>Expand instructions</summary>
 
-While it is possible to use, [any of the available backends](#backends) or creating a custom one, we'll be creating a client and server system, where a gRPC server exposes a resource backed by a file, and a managed mount uses a gRPC client to mount the resource. Note that since r3map is fully transport independent, there are other options available as well, such as fRPC and dudirekta, which [can have different characteristics depending on network conditions and other factors](https://pojntfx.github.io/networked-linux-memsync/main.html#rpc-frameworks-1). To create the server exposing the resource, first the backend and gRPC need to be set up:
+While it is possible to use [any of the available backends](#backends) or creating a custom one, we'll be creating a client and server system, where a gRPC server exposes a resource backed by a file, and a managed mount uses a gRPC client to mount the resource. Note that since r3map is fully transport independent, there are other options available as well, such as fRPC and dudirekta, which [can have different characteristics depending on network conditions and other factors](https://pojntfx.github.io/networked-linux-memsync/main.html#rpc-frameworks-1). To create the server exposing the resource, first the backend and gRPC need to be set up:
 
 ```go
 f, err := os.CreateTemp("", "")
@@ -313,7 +313,7 @@ Just like with the direct mount API, the interrupt signal has been intercepted t
 <details>
   <summary>Expand instructions</summary>
 
-Just like with the direct mount, the mount can be started like this, and should output the following; see the [full code of the example for more](./cmd/r3map-example-managed-mount-file/main.go):
+Just like with the direct mount, the managed mount can be started like this, and should output the following; see the [full code of the example for more](./cmd/r3map-example-managed-mount-file/main.go):
 
 ```shell
 $ sudo modprobe nbd # This is only necessary once, and loads the NBD kernel module
@@ -331,7 +331,7 @@ $ sudo cat /dev/nbd0
 Hello, world!
 ```
 
-Note that if the client is stopped and started again, the resource will continue to be available.
+Note that if the client is stopped and started again, the data of the resource will continue to be available, since it is stored on the server and remaining changes are flushed to the server on exit and by the background push system.
 
 </details>
 
@@ -341,7 +341,7 @@ For more information on the managed mount, as well as available configuration op
 
 > TL;DR: Create a backend, attach it to a migrator, start seeding the resource on one host, leech the resource from a second host, finalize the migration and interact with the resource through a frontend of your choice (`[]byte`/file etc.) or start seeding the resource again
 
-While mounts offer a universal method for accessing resources, migrations are optimized for scenarios that involve moving a resource between two hosts. This is because they use a two-phase protocol to minimize the time the resource is unavailable during migration (see the [mounts and migrations reference](#mounts-and-migrations) for more information). Migrations are also peer-to-peer, meaning that no intermediary/remote backend is required, which reduces the impact of latency on the migration. There are two actors in a migration: The seeder, from which a resource can be migrated from, and a leecher, which migrates a resource to itself. Similarly to mounts, different frontends (such as `[]byte` or the file frontend), backends (for locally storing the resource) and transports (like gRPC) can be chosen.
+While mounts offer a universal method for accessing resources, migrations are optimized for scenarios that involve moving a resource between two hosts. This is because they use a two-phase protocol to minimize the time the resource is unavailable during migration (see the [mounts and migrations reference](#mounts-and-migrations) for more information). Migrations are also peer-to-peer, meaning that no intermediary/remote backend is required, which reduces the impact of network latency on the migration. There are two actors in a migration: The seeder, from which a resource can be migrated from, and a leecher, which migrates a resource to itself. Similarly to mounts, different frontends (such as `[]byte` or the file frontend), backends (for locally storing the resource) and transports (like gRPC) can be chosen.
 
 #### 3.1 Setting up a Migrator
 
@@ -401,7 +401,7 @@ mgr := migration.NewFileMigrator(
 )
 ```
 
-Note the use of the hook functions; these allow for integration the migration with the application lifecycle, and can be used for notifying an application which is accessing to suspend or shut down access to the resource when the migration lifecycle requires it, as well as monitoring the migration progress with `OnChunkIsLocal`. The migrator can be started similarly to how the mounts are started, including registering the interrupt handler to prevent data loss on exit:
+Note the use of the hook functions; these allow for integrating the migration with the application lifecycle, and can be used for notifying an application which is accessing it to suspend or shut down access to the resource when the migration lifecycle requires it, as well as monitoring the migration progress with `OnChunkIsLocal`. The migrator can be started similarly to how the mounts are started, including registering the interrupt handler to prevent data loss on exit:
 
 ```go
 var wg sync.WaitGroup
@@ -521,7 +521,7 @@ if err != nil {
 }
 ```
 
-This will start leeching the resource in the background, and the `OnChunkLocal` callback can be used to monitor the download progress. In order to "finalize" the migration, which tells the seeder to suspend the application using the resource and sends marks chunks that were changed since the migration started as "dirty", we can call `finalize()` once the <kbd>Enter</kbd> key is pressed (for more information on the migration protocol, see the [Pull-Based Synchronization with Migrations](https://pojntfx.github.io/networked-linux-memsync/main.html#pull-based-synchronization-with-migrations) chapter in the accompanying thesis):
+This will start leeching the resource in the background, and the `OnChunkLocal` callback can be used to monitor the download progress. In order to "finalize" the migration, which tells the seeder to suspend the application using the resource and marks chunks that were changed since the migration started as "dirty", we can call `finalize()` once the <kbd>Enter</kbd> key is pressed (for more information on the migration protocol, see the [Pull-Based Synchronization with Migrations](https://pojntfx.github.io/networked-linux-memsync/main.html#pull-based-synchronization-with-migrations) chapter in the accompanying thesis):
 
 ```go
 log.Println("Press <ENTER> to finalize migration")
@@ -556,7 +556,7 @@ server := grpc.NewServer()
 <details>
   <summary>Expand instructions</summary>
 
-To demonstrate the migration, a seeder can now be started like this (with the migrating being instructed to seed by providing `--laddr`), and should output the following; see the [full code of the example for more, which covers both the seeder and the leecher](./cmd/r3map-example-migration/main.go):
+To demonstrate the migration, a seeder can now be started like this (with the migrator being instructed to seed by providing `--laddr`), and should output the following; see the [full code of the example for more, which covers both the seeder and the leecher](./cmd/r3map-example-migration/main.go):
 
 ```shell
 $ sudo modprobe nbd # This is only necessary once, and loads the NBD kernel module
@@ -585,7 +585,7 @@ This starts pulling chunks in the background, and the migration can be finalized
 2023/08/20 01:06:38 Press <ENTER> to invalidate resource
 ```
 
-The resource can now be interacted with on the provided path. Since the `--laddr` flag was also provided, the resource is also being seeded, which makes it possible to migrate it to another leecher, this time not enabling the seeder mode by not specifying `--laddr`, and once again finalizing the migration with <kbd>Enter</kbd>:
+The resource can now be interacted with on the provided path. Since the `--laddr` flag was also provided, the resource is also being seeded after being fully leeched, which makes it possible to migrate it to another leecher. This time the seeder mode is disabled by not specifying `--laddr`, and the migration is finalized with <kbd>Enter</kbd>:
 
 ```shell
 $ sudo modprobe nbd # This is only necessary once, and loads the NBD kernel module
@@ -598,7 +598,7 @@ Pulling 100% [==============================================] (512/512 MB, 508 M
 2023/08/20 01:10:58 Resuming app on /dev/nbd1
 ```
 
-The resource can now be interacted as though it were any file again, for example by reading and writing a string to/from it; no additional seeder has been started, thus terminating the migration chain:
+The resource can now be interacted with as though it were any file again, for example by reading and writing a string to/from it; no additional seeder has been started, thus terminating the migration chain:
 
 ```shell
 $ echo 'Hello, world!' | sudo tee /dev/nbd0
