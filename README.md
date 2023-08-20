@@ -41,9 +41,14 @@ $ go get github.com/pojntfx/r3map/...@latest
 
 > TL;DR: Create a backend, find a free block device, start the direct mount and interact with the resource through a frontend of your choice (`[]byte`/file etc.)
 
+The direct mount API is the simplest way of accessing a resource. In order to make a resource available, either a custom backend can be created or one of the available example backends can be used (see the [backends reference](#backends) for more information), such as a S3 bucket or a Redis database. Similarly so, multiple frontends, which represent means to access a resource, are also available: The path frontend, which simply exposes the path to a block device with the resource, the file frontend, which exposes the resource by opening the block device and integrating the file's lifecycle, and the slice/`[]byte` frontend, which makes the resource available as a `[]byte`, **only fetching chunks from the backend as they are being accessed**. For the file frontend, this means that if call `.Read(offset, chunk)`, only `len(chunk)` at `offset` will be fetched, while for a slice, if you access `sliceFrontend[lowerBound:upperBound]`, only the chunks from `lowerBound` to `upperBound` will be fetched as they are being accessed. For more information, check out the [frontends reference](#path-slice-and-file-frontends).
+
 #### 1.1 Setting up a Backend
 
-The direct mount API is the simplest way of accessing a resource. In order to make a resource available, either a custom backend can be created or one of the available example backends can be used (see the [backends reference](#backends) for more information), such as a S3 bucket or a Redis database. For this usage example, we'll use a simple, local example backend: The file backend, which can be set up with following:
+<details>
+  <summary>Expand instructions</summary>
+
+For this usage example, we'll use a simple, local example backend: The file backend, which can be set up with following:
 
 ```go
 f, err := os.CreateTemp("", "")
@@ -74,9 +79,14 @@ if err != nil {
 defer devFile.Close()
 ```
 
-#### 1.2 Setting up a Mount
+</details>
 
-Multiple frontends, which represent means to access a resource, are available: The path frontend, which simply exposes the path to a block device with the resource, the file frontend, which exposes the resource by opening the block device and integrating the file's lifecycle, and the slice/`[]byte` frontend, which makes the resource available as a `[]byte`, **only fetching chunks from the backend as they are being accessed**. For the file frontend, this means that if call `.Read(offset, chunk)`, only `len(chunk)` at `offset` will be fetched, while for a slice, if you access `sliceFrontend[lowerBound:upperBound]`, only the chunks from `lowerBound` to `upperBound` will be fetched as they are being accessed. For more information, check out the [frontends reference](#path-slice-and-file-frontends). For this simple example, we'll use the file frontend, which can be set up and initialized like this:
+#### 1.2 Setting up a Frontend
+
+<details>
+  <summary>Expand instructions</summary>
+
+For this simple example, we'll use the file frontend, which can be set up and initialized like this; it provides a virtual file, which fetches offsets on demand:
 
 ```go
 mnt := mount.NewDirectFileMount(
@@ -120,7 +130,12 @@ wg.Wait()
 
 Note that the interrupt signal has been intercepted to gracefully close the mount, which helps prevent data loss when stopping the process. Here, the file provided by the file frontend is simply used to print the path to the resource; in real-world scenarios, the file (or `[]byte`) provided can be interacted with directly.
 
+</details>
+
 #### 1.3 Demonstration
+
+<details>
+  <summary>Expand instructions</summary>
 
 The mount can then be started like this, and should output the following; see the [full code of the example for more](./cmd/r3map-example-direct-mount-file/main.go):
 
@@ -139,6 +154,8 @@ $ sudo cat /dev/nbd0
 Hello, world!
 ```
 
+</details>
+
 For more information on the direct mount, as well as available configuration options, usage examples for different frontends and backends, and using a remote resource instead of a local one, see the [direct mount benchmark](./cmd/r3map-benchmark-direct-mount/main.go) and [direct mount Go API reference](https://pkg.go.dev/github.com/pojntfx/r3map/pkg/mount#DirectFileMount).
 
 ### 2. Efficiently Mounting a Remote Resource with the Managed Mount API
@@ -148,6 +165,9 @@ For more information on the direct mount, as well as available configuration opt
 While the direct mount API is a good choice for mounting a resource if there is little to no latency, the managed mount API is the better choice if the resource is remote, esp. in networks with high latencies such as the public internet. Instead of the reads and writes being forwarded synchronously to the backend, the asynchronous background push- and pull system can take advantage of multiple connections and concurrent push/pull to significantly increase throughput and decrease access latency, as well as pre-emptively pulling specific offsets first (see the [mounts reference](#direct-mounts-managed-mounts-and-pull-priority) for more information).
 
 #### 2.1 Setting up a Server
+
+<details>
+  <summary>Expand instructions</summary>
 
 While it is possible to use, [any of the available backends](#backends) or creating a custom one, we'll be creating a client and server system, where a gRPC server exposes a resource backed by a file, and a managed mount uses a gRPC client to mount the resource. Note that since r3map is fully transport independent, there are other options available as well, such as fRPC and dudirekta, which [can have different characteristics depending on network conditions and other factors](https://pojntfx.github.io/networked-linux-memsync/main.html#rpc-frameworks-1). To create the server exposing the resource, first the backend and gRPC need to be set up:
 
@@ -199,7 +219,12 @@ $ go run ./cmd/r3map-example-mount-server/
 2023/08/19 18:32:26 Listening on localhost:1337
 ```
 
+</details>
+
 #### 2.2 Setting up a Client
+
+<details>
+  <summary>Expand instructions</summary>
 
 On the client side, we connect to this server and set up a local backend (which caches backgrounds reads/writes; here we use a simple file backend, but any backend can be used):
 
@@ -281,7 +306,12 @@ wg.Wait()
 
 Just like with the direct mount API, the interrupt signal has been intercepted to gracefully close the mount, which helps prevent data loss when stopping the process by flushing the remaining changes to the backend. Here, the file provided by the file frontend is simply used to print the path to the resource; in real-world scenarios, the file (or `[]byte`) provided can be interacted with directly.
 
+</details>
+
 #### 2.3 Demonstration
+
+<details>
+  <summary>Expand instructions</summary>
 
 Just like with the direct mount, the mount can be started like this, and should output the following; see the [full code of the example for more](./cmd/r3map-example-managed-mount-file/main.go):
 
@@ -301,15 +331,24 @@ $ sudo cat /dev/nbd0
 Hello, world!
 ```
 
-Note that if the client is stopped and started again, the resource will continue to be available. For more information on the managed mount, as well as available configuration options, usage examples for different frontends and backends, see the [managed mount benchmark](./cmd/r3map-benchmark-managed-mount/main.go) and [managed mount Go API reference](https://pkg.go.dev/github.com/pojntfx/r3map/pkg/mount#ManagedFileMount).
+Note that if the client is stopped and started again, the resource will continue to be available.
+
+</details>
+
+For more information on the managed mount, as well as available configuration options, usage examples for different frontends and backends, see the [managed mount benchmark](./cmd/r3map-benchmark-managed-mount/main.go) and [managed mount Go API reference](https://pkg.go.dev/github.com/pojntfx/r3map/pkg/mount#ManagedFileMount).
 
 ### 3. Migrating a Memory Region Between Two Hosts with the Migration API
 
 > TL;DR: Create a backend, attach it to a migrator, start seeding the resource on one host, leech the resource from a second host, finalize the migration and interact with the resource through a frontend of your choice (`[]byte`/file etc.) or start seeding the resource again
 
+While mounts offer a universal method for accessing resources, migrations are optimized for scenarios that involve moving a resource between two hosts. This is because they use a two-phase protocol to minimize the time the resource is unavailable during migration (see the [mounts and migrations reference](#mounts-and-migrations) for more information). Migrations are also peer-to-peer, meaning that no intermediary/remote backend is required, which reduces the impact of latency on the migration. There are two actors in a migration: The seeder, from which a resource can be migrated from, and a leecher, which migrates a resource to itself. Similarly to mounts, different frontends (such as `[]byte` or the file frontend), backends (for locally storing the resource) and transports (like gRPC) can be chosen.
+
 #### 3.1 Setting up a Migrator
 
-While mounts offer a universal method for accessing resources, migrations are optimized for scenarios that involve moving a resource between two hosts. This is because they use a two-phase protocol to minimize the time the resource is unavailable during migration (see the [mounts and migrations reference](#mounts-and-migrations) for more information). Migrations are also peer-to-peer, meaning that no intermediary/remote backend is required, which reduces the impact of latency on the migration. There are two actors in a migration: The seeder, from which a resource can be migrated from, and a leecher, which migrates a resource to itself. Similarly to mounts, different frontends (such as `[]byte` or the file frontend), backends (for locally storing the resource) and transports (like gRPC) can be chosen; for this example, we'll start by creating a migrator (the component that handles both seeding and leeching) with a file frontend, file backend and gRPC transport:
+<details>
+  <summary>Expand instructions</summary>
+
+For this example, we'll start by creating a migrator (the component that handles both seeding and leeching) with a file frontend, file backend and gRPC transport:
 
 ```go
 f, err := os.CreateTemp("", "")
@@ -386,7 +425,12 @@ go func() {
 }()
 ```
 
+</details>
+
 #### 3.2 Seeding a Resource
+
+<details>
+  <summary>Expand instructions</summary>
 
 Note that the migrator is able to both seed and leech a resource; to start seeding, call `Seed()` on the migrator:
 
@@ -452,7 +496,12 @@ go func() {
 }()
 ```
 
+</details>
+
 #### 3.3 Leeching a Resource
+
+<details>
+  <summary>Expand instructions</summary>
 
 Setting up a leecher is similar to setting up a seeder, and starts by connecting to the gRPC server provided by the seeder as well as calling `Leech()` on the migrator:
 
@@ -500,7 +549,12 @@ server := grpc.NewServer()
 // ...
 ```
 
+</details>
+
 #### 3.4 Demonstration
+
+<details>
+  <summary>Expand instructions</summary>
 
 To demonstrate the migration, a seeder can now be started like this (with the migrating being instructed to seed by providing `--laddr`), and should output the following; see the [full code of the example for more, which covers both the seeder and the leecher](./cmd/r3map-example-migration/main.go):
 
@@ -553,9 +607,34 @@ $ sudo cat /dev/nbd0
 Hello, world!
 ```
 
+</details>
+
 For more information on the migration, as well as available configuration options, usage examples for different frontends and backends, see the [migration benchmark](./cmd/r3map-benchmark-migration/main.go) and [migration Go API reference](https://pkg.go.dev/github.com/pojntfx/r3map/pkg/migration#FileMigrator).
 
 🚀 That's it! We can't wait to see what you're going to build with r3map. Be sure to take a look at the [reference](#reference), [additional examples and related projects](#examples) and the [accompanying research paper](https://pojntfx.github.io/networked-linux-memsync/main.pdf) for more information.
+
+## Examples
+
+To make getting started with r3map easier, take a look at the following simple usage examples:
+
+- [Direct Mount Example (file backend)](./cmd/r3map-example-direct-mount-file/main.go)
+- [Direct and Managed Mount Example Server (gRPC-based)](./cmd/r3map-example-mount-server/main.go)
+- [Direct Mount Example Client (gRPC-based)](./cmd/r3map-example-direct-mount-client/main.go)
+- [Managed Mount Example Client (gRPC-based)](./cmd/r3map-example-managed-mount-client/main.go)
+- [Migration Example (gRPC-based)](./cmd/r3map-example-migration/main.go)
+
+The benchmarks also serve as much more detailed examples, highlighting different configuration options, transports and backends:
+
+- [Direct and Managed Mount Benchmark Server](./cmd/r3map-benchmark-mount-server/main.go)
+- [Direct Mount Benchmark](./cmd/r3map-benchmark-direct-mount/main.go)
+- [Managed Mount Benchmark](./cmd/r3map-benchmark-managed-mount/main.go)
+- [Migration Benchmark Server](./cmd/r3map-benchmark-migration-server/main.go)
+- [Migration Benchmark](./cmd/r3map-benchmark-migration/main.go)
+
+For more in-depth, real-world use cases, check out these related projects which use r3map:
+
+- [tapisk](https://github.com/pojntfx/tapisk) exposes a tape drive as a block device using r3map's managed mounts and chunking system.
+- [ram-dl](https://github.com/pojntfx/ram-dl) uses r3map to share RAM/swap space between two hosts with direct mounts.
 
 ## Reference
 
@@ -605,29 +684,6 @@ Since the interface is so simple, it is possible to represent almost any resourc
 - [RPC](pkg/backend/rpc.go): Exposes any backend over an RPC framework of choice, such as gRPC
 
 Different backends tend to have different characteristics, and behave [differently depending on network conditions and access patterns](https://pojntfx.github.io/networked-linux-memsync/main.html#backends). Depending on the backend used, it might also require a chunking system, which [can be implemented on both the client and server side](https://pojntfx.github.io/networked-linux-memsync/main.html#chunking-3); see the [mount benchmarks](./cmd/r3map-benchmark-managed-mount/main.go) for more information.
-
-## Examples
-
-To make getting started with r3map easier, take a look at the following simple usage examples:
-
-- [Direct Mount Example (file backend)](./cmd/r3map-example-direct-mount-file/main.go)
-- [Direct and Managed Mount Example Server (gRPC-based)](./cmd/r3map-example-mount-server/main.go)
-- [Direct Mount Example Client (gRPC-based)](./cmd/r3map-example-direct-mount-client/main.go)
-- [Managed Mount Example Client (gRPC-based)](./cmd/r3map-example-managed-mount-client/main.go)
-- [Migration Example (gRPC-based)](./cmd/r3map-example-migration/main.go)
-
-The benchmarks also serve as much more detailed examples, highlighting different configuration options, transports and backends:
-
-- [Direct and Managed Mount Benchmark Server](./cmd/r3map-benchmark-mount-server/main.go)
-- [Direct Mount Benchmark](./cmd/r3map-benchmark-direct-mount/main.go)
-- [Managed Mount Benchmark](./cmd/r3map-benchmark-managed-mount/main.go)
-- [Migration Benchmark Server](./cmd/r3map-benchmark-migration-server/main.go)
-- [Migration Benchmark](./cmd/r3map-benchmark-migration/main.go)
-
-For more in-depth, real-world use cases, check out these related projects which use r3map:
-
-- [tapisk](https://github.com/pojntfx/tapisk) exposes a tape drive as a block device using r3map's managed mounts and chunking system.
-- [ram-dl](https://github.com/pojntfx/ram-dl) uses r3map to share RAM/swap space between two hosts with direct mounts.
 
 ## Acknowledgements
 
