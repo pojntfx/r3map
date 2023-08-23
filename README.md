@@ -27,6 +27,8 @@ The project is **accompanied by a scientific thesis**, which provides additional
 	<a href="https://pojntfx.github.io/networked-linux-memsync/main.pdf" rel="nofollow"><img src="./docs/thesis-badge.png" alt="Thesis badge for Pojtinger, F. (2023). Efficient Synchronization of Linux Memory Regions over a Network: A Comparative Study and Implementation" width="650"></a>
 </p>
 
+For more information, you can find the related benchmark and LaTeX code in the [thesis repository](https://github.com/pojntfx/networked-linux-memsync).
+
 ## Installation
 
 You can add r3map to your Go project by running the following:
