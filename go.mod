@@ -49,3 +49,5 @@ require (
 )
 
 replace github.com/gocql/gocql => github.com/scylladb/gocql v1.10.0
+
+replace github.com/pojntfx/go-nbd => ../go-nbd

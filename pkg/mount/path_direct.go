@@ -3,7 +3,8 @@ package mount
 import (
 	"net"
 	"os"
-	"syscall"
+	"path/filepath"
+	"sync"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
@@ -18,11 +19,9 @@ type DirectPathMount struct {
 	serverOptions *server.Options
 	clientOptions *client.Options
 
-	sf *os.File
-	sc *net.UnixConn
+	scs []net.Conn
 
-	cf *os.File
-	cc *net.UnixConn
+	ccs []net.Conn
 
 	errs chan error
 }
@@ -44,6 +43,8 @@ func NewDirectPathMount(
 		serverOptions: serverOptions,
 		clientOptions: clientOptions,
 
+		ccs: []net.Conn{},
+
 		errs: make(chan error),
 	}
 }
@@ -59,49 +60,73 @@ func (d *DirectPathMount) Wait() error {
 }
 
 func (d *DirectPathMount) Open() error {
-	fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	// fds, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	// if err != nil {
+	// 	return err
+	// }
+
+	addrDir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return err
 	}
+	addr := filepath.Join(addrDir, "r3map.sock")
+
+	var listenerWg sync.WaitGroup
+	listenerWg.Add(1)
 
 	go func() {
-		d.sf = os.NewFile(uintptr(fds[0]), "server")
-
-		c, err := net.FileConn(d.sf)
+		lis, err := net.Listen("unix", addr)
 		if err != nil {
 			d.errs <- err
 
 			return
 		}
+		// TODO: Add lis to struct and close it on struct.Close
 
-		d.sc = c.(*net.UnixConn)
+		listenerWg.Done()
 
-		if err := server.Handle(
-			d.sc,
-			[]*server.Export{d.e},
-			d.serverOptions,
-		); err != nil {
-			if !utils.IsClosedErr(err) {
-				d.errs <- err
+		for {
+			c, err := lis.Accept()
+			if err != nil {
+				// TODO: We should not return here, but continue instead, with some sort of logging since its no longer 1:1
+				if !utils.IsClosedErr(err) {
+					d.errs <- err
+				}
+
+				return
 			}
+			d.scs = append(d.scs, c)
 
-			return
+			go func() {
+				if err := server.Handle(
+					c,
+					[]*server.Export{d.e},
+					d.serverOptions,
+				); err != nil {
+					if !utils.IsClosedErr(err) {
+						d.errs <- err
+					}
+
+					return
+				}
+			}()
 		}
 	}()
 
 	ready := make(chan struct{})
 
 	go func() {
-		d.cf = os.NewFile(uintptr(fds[1]), "client")
+		listenerWg.Wait()
 
-		c, err := net.FileConn(d.cf)
-		if err != nil {
-			d.errs <- err
+		for i := 0; i < 2; i++ {
+			c, err := net.Dial("unix", addr)
+			if err != nil {
+				d.errs <- err
 
-			return
+				return
+			}
+			d.ccs = append(d.ccs, c)
 		}
-
-		d.cc = c.(*net.UnixConn)
 
 		if d.clientOptions == nil {
 			d.clientOptions = &client.Options{}
@@ -111,7 +136,7 @@ func (d *DirectPathMount) Open() error {
 			ready <- struct{}{}
 		}
 
-		if err := client.Connect(d.cc, d.f, d.clientOptions); err != nil {
+		if err := client.Connect(d.ccs, d.f, d.clientOptions); err != nil {
 			if !utils.IsClosedErr(err) {
 				d.errs <- err
 			}
@@ -128,21 +153,25 @@ func (d *DirectPathMount) Open() error {
 func (d *DirectPathMount) Close() error {
 	_ = client.Disconnect(d.f)
 
-	if d.cc != nil {
-		_ = d.cc.Close()
+	for _, cc := range d.ccs {
+		_ = cc.Close()
 	}
+	d.ccs = []net.Conn{}
 
-	if d.cf != nil {
-		_ = d.cf.Close()
-	}
+	// if d.cf != nil {
+	// 	_ = d.cf.Close()
+	// }
 
-	if d.sc != nil {
-		_ = d.sc.Close()
+	for _, sc := range d.scs {
+		_ = sc.Close()
 	}
+	d.scs = []net.Conn{}
 
-	if d.sf != nil {
-		_ = d.sf.Close()
-	}
+	// TODO: Also close the listener
+
+	// if d.sf != nil {
+	// 	_ = d.sf.Close()
+	// }
 
 	if d.errs != nil {
 		close(d.errs)
