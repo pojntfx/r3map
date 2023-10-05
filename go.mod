@@ -10,7 +10,7 @@ require (
 	github.com/loopholelabs/polyglot-go v0.5.1
 	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/pojntfx/dudirekta v0.5.1
-	github.com/pojntfx/go-nbd v0.3.0
+	github.com/pojntfx/go-nbd v0.3.2
 	github.com/redis/go-redis/v9 v9.0.5
 	github.com/rs/zerolog v1.30.0
 	github.com/schollz/progressbar/v3 v3.13.1
