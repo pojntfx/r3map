@@ -321,6 +321,7 @@ func (l *PathLeecher) Release() (
 	chan error,
 	*sync.WaitGroup,
 	string,
+	*os.File,
 ) {
 	l.finalizedCond.L.Lock()
 	if !l.finalized {
@@ -336,7 +337,7 @@ func (l *PathLeecher) Release() (
 
 	l.released = true
 
-	return l.dev, l.errs, l.devWg, l.devicePath
+	return l.dev, l.errs, l.devWg, l.devicePath, l.serverFile
 }
 
 func (l *PathLeecher) Close() error {

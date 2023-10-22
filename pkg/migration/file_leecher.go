@@ -93,6 +93,7 @@ func (l *FileLeecher) Release() (
 	chan error,
 	*sync.WaitGroup,
 	string,
+	*os.File,
 ) {
 	l.released = true
 

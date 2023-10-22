@@ -114,6 +114,7 @@ func (l *SliceLeecher) Release() (
 	chan error,
 	*sync.WaitGroup,
 	string,
+	*os.File,
 ) {
 	l.released = true
 

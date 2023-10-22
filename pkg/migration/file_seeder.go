@@ -63,6 +63,7 @@ func NewFileSeederFromLeecher(
 	errs chan error,
 	wg *sync.WaitGroup,
 	devicePath string,
+	serverFile *os.File,
 
 	deviceFile *os.File,
 ) *FileSeeder {
@@ -81,6 +82,7 @@ func NewFileSeederFromLeecher(
 			errs,
 			wg,
 			devicePath,
+			serverFile,
 		),
 
 		hooks: hooks,

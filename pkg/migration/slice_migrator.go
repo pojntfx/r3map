@@ -195,7 +195,7 @@ func (s *SliceMigrator) Leech(
 			*services.SeederService,
 			error,
 		) {
-			releasedDev, releasedErrs, releasedWg, releasedDeviceSlice := s.leecher.Release()
+			releasedDev, releasedErrs, releasedWg, releasedDeviceSlice, releasedServerFile := s.leecher.Release()
 
 			s.released = true
 			if err := s.leecher.Close(); err != nil {
@@ -222,6 +222,7 @@ func (s *SliceMigrator) Leech(
 				releasedErrs,
 				releasedWg,
 				releasedDeviceSlice,
+				releasedServerFile,
 
 				slice,
 			)

@@ -67,6 +67,7 @@ func NewSliceSeederFromLeecher(
 	errs chan error,
 	wg *sync.WaitGroup,
 	devicePath string,
+	releasedServerFile *os.File,
 
 	deviceSlice []byte,
 ) *SliceSeeder {
@@ -85,6 +86,7 @@ func NewSliceSeederFromLeecher(
 			errs,
 			wg,
 			devicePath,
+			releasedServerFile,
 		),
 
 		hooks: hooks,

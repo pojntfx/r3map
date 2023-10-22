@@ -196,7 +196,7 @@ func (s *FileMigrator) Leech(
 			*services.SeederService,
 			error,
 		) {
-			releasedDev, releasedErrs, releasedWg, releasedDeviceFile := s.leecher.Release()
+			releasedDev, releasedErrs, releasedWg, releasedDeviceFile, releasedServerFile := s.leecher.Release()
 
 			s.released = true
 			if err := s.leecher.Close(); err != nil {
@@ -223,6 +223,7 @@ func (s *FileMigrator) Leech(
 				releasedErrs,
 				releasedWg,
 				releasedDeviceFile,
+				releasedServerFile,
 
 				file,
 			)

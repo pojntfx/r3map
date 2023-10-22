@@ -90,6 +90,7 @@ func NewPathSeederFromLeecher(
 	errs chan error,
 	wg *sync.WaitGroup,
 	devicePath string,
+	serverFile *os.File,
 ) *PathSeeder {
 	if options == nil {
 		options = &SeederOptions{}
@@ -113,6 +114,7 @@ func NewPathSeederFromLeecher(
 		errs:       errs,
 		wg:         wg,
 		devicePath: devicePath,
+		serverFile: serverFile,
 	}
 }
 

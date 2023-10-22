@@ -222,7 +222,7 @@ func (s *PathMigrator) Leech(
 			*services.SeederService,
 			error,
 		) {
-			releasedDev, releasedErrs, releasedWg, releasedDevicePath := s.leecher.Release()
+			releasedDev, releasedErrs, releasedWg, releasedDevicePath, releasedServerFile := s.leecher.Release()
 
 			s.released = true
 			if err := s.leecher.Close(); err != nil {
@@ -249,6 +249,7 @@ func (s *PathMigrator) Leech(
 				releasedErrs,
 				releasedWg,
 				releasedDevicePath,
+				releasedServerFile,
 			)
 
 			go func() {
