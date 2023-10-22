@@ -41,7 +41,10 @@ type PathSeeder struct {
 
 	devicePath string
 
-	wg   *sync.WaitGroup
+	wg *sync.WaitGroup
+
+	closeLock sync.Mutex
+
 	errs chan error
 }
 
@@ -219,6 +222,9 @@ func (s *PathSeeder) Open() (string, int64, *services.SeederService, error) {
 }
 
 func (s *PathSeeder) Close() error {
+	s.closeLock.Lock()
+	defer s.closeLock.Unlock()
+
 	if hook := s.hooks.OnBeforeClose; hook != nil {
 		if err := hook(); err != nil {
 			return err

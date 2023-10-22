@@ -2,6 +2,7 @@ package migration
 
 import (
 	"context"
+	"sync"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
@@ -24,6 +25,8 @@ type SliceMigrator struct {
 
 	leecher  *SliceLeecher
 	released bool
+
+	closeLock sync.Mutex
 
 	errs chan error
 }
@@ -252,6 +255,9 @@ func (s *SliceMigrator) Leech(
 }
 
 func (s *SliceMigrator) Close() error {
+	s.closeLock.Lock()
+	defer s.closeLock.Unlock()
+
 	if s.seeder != nil {
 		_ = s.seeder.Close()
 	}

@@ -25,7 +25,10 @@ type Pusher struct {
 
 	workerWg  sync.WaitGroup
 	workerSem chan struct{}
-	errs      chan error
+
+	closeLock sync.Mutex
+
+	errs chan error
 }
 
 func NewPusher(
@@ -166,6 +169,9 @@ func (p *Pusher) Wait() error {
 }
 
 func (p *Pusher) Close() error {
+	p.closeLock.Lock()
+	defer p.closeLock.Unlock()
+
 	if _, err := p.Sync(); err != nil {
 		return err
 	}

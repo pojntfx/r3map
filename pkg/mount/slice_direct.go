@@ -20,6 +20,8 @@ type DirectSliceMount struct {
 	mmapMount sync.Mutex
 
 	b backend.Backend
+
+	closeLock sync.Mutex
 }
 
 func NewDirectSliceMount(
@@ -79,6 +81,9 @@ func (d *DirectSliceMount) Open() ([]byte, error) {
 }
 
 func (d *DirectSliceMount) Close() error {
+	d.closeLock.Lock()
+	defer d.closeLock.Unlock()
+
 	d.mmapMount.Lock()
 	if d.slice != nil {
 		_ = d.slice.Unlock()

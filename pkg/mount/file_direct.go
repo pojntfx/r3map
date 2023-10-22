@@ -2,6 +2,7 @@ package mount
 
 import (
 	"os"
+	"sync"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
@@ -13,6 +14,8 @@ type DirectFileMount struct {
 
 	devicePath string
 	deviceFile *os.File
+
+	closeLock sync.Mutex
 }
 
 func NewDirectFileMount(
@@ -54,6 +57,9 @@ func (d *DirectFileMount) Open() (*os.File, error) {
 }
 
 func (d *DirectFileMount) Close() error {
+	d.closeLock.Lock()
+	defer d.closeLock.Unlock()
+
 	if d.deviceFile != nil {
 		_ = d.deviceFile.Close()
 

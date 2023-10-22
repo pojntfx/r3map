@@ -3,6 +3,7 @@ package mount
 import (
 	"net"
 	"os"
+	"sync"
 	"syscall"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
@@ -23,6 +24,8 @@ type DirectPathMount struct {
 
 	cf *os.File
 	cc *net.UnixConn
+
+	closeLock sync.Mutex
 
 	errs chan error
 }
@@ -126,6 +129,9 @@ func (d *DirectPathMount) Open() error {
 }
 
 func (d *DirectPathMount) Close() error {
+	d.closeLock.Lock()
+	defer d.closeLock.Unlock()
+
 	_ = client.Disconnect(d.f)
 
 	if d.cc != nil {

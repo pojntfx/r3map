@@ -3,6 +3,7 @@ package migration
 import (
 	"context"
 	"os"
+	"sync"
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
@@ -25,6 +26,8 @@ type FileMigrator struct {
 
 	leecher  *FileLeecher
 	released bool
+
+	closeLock sync.Mutex
 
 	errs chan error
 }
@@ -253,6 +256,9 @@ func (s *FileMigrator) Leech(
 }
 
 func (s *FileMigrator) Close() error {
+	s.closeLock.Lock()
+	defer s.closeLock.Unlock()
+
 	if s.seeder != nil {
 		_ = s.seeder.Close()
 	}

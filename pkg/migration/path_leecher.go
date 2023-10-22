@@ -87,7 +87,10 @@ type PathLeecher struct {
 
 	pullerWg sync.WaitGroup
 	devWg    *sync.WaitGroup
-	errs     chan error
+
+	closeLock sync.Mutex
+
+	errs chan error
 }
 
 func NewPathLeecher(
@@ -341,6 +344,9 @@ func (l *PathLeecher) Release() (
 }
 
 func (l *PathLeecher) Close() error {
+	l.closeLock.Lock()
+	defer l.closeLock.Unlock()
+
 	if !l.released {
 		if hook := l.hooks.OnBeforeClose; hook != nil {
 			if err := hook(); err != nil {

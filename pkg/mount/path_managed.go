@@ -53,7 +53,10 @@ type ManagedPathMount struct {
 	puller     *chunks.Puller
 	dev        *DirectPathMount
 
-	wg   sync.WaitGroup
+	wg sync.WaitGroup
+
+	closeLock sync.Mutex
+
 	errs chan error
 }
 
@@ -279,6 +282,9 @@ func (m *ManagedPathMount) Open() (string, int64, error) {
 }
 
 func (m *ManagedPathMount) Close() error {
+	m.closeLock.Lock()
+	defer m.closeLock.Unlock()
+
 	if m.syncer != nil {
 		_ = m.syncer.Sync()
 	}
