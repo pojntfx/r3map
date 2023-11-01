@@ -110,6 +110,9 @@ func (s *SliceMigrator) Seed() (
 			return
 		}
 
+		s.closeLock.Lock()
+		defer s.closeLock.Unlock()
+
 		if s.errs != nil {
 			close(s.errs)
 
@@ -171,6 +174,9 @@ func (s *SliceMigrator) Leech(
 
 			return
 		}
+
+		s.closeLock.Lock()
+		defer s.closeLock.Unlock()
 
 		if !s.released && s.errs != nil {
 			close(s.errs)
@@ -236,6 +242,9 @@ func (s *SliceMigrator) Leech(
 
 					return
 				}
+
+				s.closeLock.Lock()
+				defer s.closeLock.Unlock()
 
 				if s.errs != nil {
 					close(s.errs)

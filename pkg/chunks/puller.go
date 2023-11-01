@@ -25,6 +25,8 @@ type Puller struct {
 	chunkIndexesLock          sync.Mutex
 	nextChunk                 int64
 	nextChunkAndFinalizedLock sync.Mutex
+
+	closeLock sync.Mutex
 }
 
 func NewPuller(
@@ -164,6 +166,9 @@ func (p *Puller) Finalize(dirtyOffsets []int64) {
 func (p *Puller) Wait() error {
 	go func() {
 		p.workersWg.Wait()
+
+		p.closeLock.Lock()
+		defer p.closeLock.Unlock()
 
 		if p.errs != nil {
 			close(p.errs)
