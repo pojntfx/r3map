@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -216,14 +217,12 @@ func main() {
 		defer conn.Close()
 
 		ready := make(chan struct{})
-		registry := rpc.NewRegistry(
+		registry := rpc.NewRegistry[services.SeederRemote, json.RawMessage](
 			&struct{}{},
-			services.SeederRemote{},
 
 			time.Second*10,
 			ctx,
 			&rpc.Options{
-				ResponseBufferLen: rpc.DefaultResponseBufferLen,
 				OnClientConnect: func(remoteID string) {
 					ready <- struct{}{}
 				},
@@ -231,7 +230,29 @@ func main() {
 		)
 
 		go func() {
-			if err := registry.Link(conn); err != nil {
+			encoder := json.NewEncoder(conn)
+			decoder := json.NewDecoder(conn)
+
+			if err := registry.LinkStream(
+				func(v rpc.Message[json.RawMessage]) error {
+					return encoder.Encode(v)
+				},
+				func(v *rpc.Message[json.RawMessage]) error {
+					return decoder.Decode(v)
+				},
+
+				func(v any) (json.RawMessage, error) {
+					b, err := json.Marshal(v)
+					if err != nil {
+						return nil, err
+					}
+
+					return json.RawMessage(b), nil
+				},
+				func(data json.RawMessage, v any) error {
+					return json.Unmarshal([]byte(data), v)
+				},
+			); err != nil {
 				if !utils.IsClosedErr(err) {
 					seederErrs <- err
 
@@ -244,11 +265,11 @@ func main() {
 
 		<-ready
 
-		for _, candidate := range registry.Peers() {
-			peer = &candidate
+		_ = registry.ForRemotes(func(remoteID string, remote services.SeederRemote) error {
+			peer = &remote
 
-			break
-		}
+			return nil
+		})
 
 		if peer == nil {
 			panic(errNoPeerFound)

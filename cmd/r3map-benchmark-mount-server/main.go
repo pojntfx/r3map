@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -145,14 +146,12 @@ func main() {
 		}()
 	} else {
 		clients := 0
-		registry := rpc.NewRegistry(
+		registry := rpc.NewRegistry[struct{}, json.RawMessage](
 			svc,
-			struct{}{},
 
 			time.Second*10,
 			ctx,
 			&rpc.Options{
-				ResponseBufferLen: rpc.DefaultResponseBufferLen,
 				OnClientConnect: func(remoteID string) {
 					clients++
 
@@ -196,7 +195,29 @@ func main() {
 						}
 					}()
 
-					if err := registry.Link(conn); err != nil {
+					encoder := json.NewEncoder(conn)
+					decoder := json.NewDecoder(conn)
+
+					if err := registry.LinkStream(
+						func(v rpc.Message[json.RawMessage]) error {
+							return encoder.Encode(v)
+						},
+						func(v *rpc.Message[json.RawMessage]) error {
+							return decoder.Decode(v)
+						},
+
+						func(v any) (json.RawMessage, error) {
+							b, err := json.Marshal(v)
+							if err != nil {
+								return nil, err
+							}
+
+							return json.RawMessage(b), nil
+						},
+						func(data json.RawMessage, v any) error {
+							return json.Unmarshal([]byte(data), v)
+						},
+					); err != nil {
 						panic(err)
 					}
 				}()
