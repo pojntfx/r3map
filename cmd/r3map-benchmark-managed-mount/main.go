@@ -18,9 +18,9 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/gocql/gocql"
 	"github.com/minio/minio-go"
-	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
+	"github.com/pojntfx/ltsrpc/pkg/rpc"
 	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/mount/v1"
 	v1proto "github.com/pojntfx/r3map/pkg/api/proto/mount/v1"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"
@@ -37,7 +37,7 @@ const (
 	backendTypeFile      = "file"
 	backendTypeMemory    = "memory"
 	backendTypeDirectory = "directory"
-	backendTypeDudirekta = "dudirekta"
+	backendTypeLtsrpc    = "ltsrpc"
 	backendTypeGrpc      = "grpc"
 	backendTypeFrpc      = "frpc"
 	backendTypeRedis     = "redis"
@@ -46,7 +46,7 @@ const (
 )
 
 var (
-	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory, backendTypeDudirekta, backendTypeGrpc, backendTypeFrpc, backendTypeRedis, backendTypeS3, backendTypeCassandra}
+	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory, backendTypeLtsrpc, backendTypeGrpc, backendTypeFrpc, backendTypeRedis, backendTypeS3, backendTypeCassandra}
 
 	errUnknownBackend     = errors.New("unknown backend")
 	errNoPeerFound        = errors.New("no peer found")
@@ -55,7 +55,7 @@ var (
 )
 
 func main() {
-	s := flag.Int64("size", 536870912, "Size of the memory region, file to allocate or to size assume in case of the dudirekta/gRPC/fRPC remotes")
+	s := flag.Int64("size", 536870912, "Size of the memory region, file to allocate or to size assume in case of the ltsrpc/gRPC/fRPC remotes")
 	chunkSize := flag.Int64("chunk-size", client.MaximumBlockSize, "Chunk size to use")
 
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background; pass in a negative value to disable preemptive pull")
@@ -72,7 +72,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	localLocation := flag.String("local-backend-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for dudirekta/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
+	localLocation := flag.String("local-backend-location", filepath.Join(os.TempDir(), "local"), "Local backend's remote address (for ltsrpc/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
 	localChunking := flag.Bool("local-backend-chunking", false, "Whether the local backend requires to be interfaced with in fixed chunks")
 
 	remoteBackend := flag.String(
@@ -83,7 +83,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	remoteLocation := flag.String("remote-backend-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for dudirekta/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
+	remoteLocation := flag.String("remote-backend-location", filepath.Join(os.TempDir(), "remote"), "Remote backend's remote address (for ltsrpc/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
 	remoteChunking := flag.Bool("remote-backend-chunking", false, "Whether the remote backend requires to be interfaced with in fixed chunks")
 
 	outputBackend := flag.String(
@@ -94,7 +94,7 @@ func main() {
 			knownBackendTypes,
 		),
 	)
-	outputLocation := flag.String("output-backend-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for dudirekta/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
+	outputLocation := flag.String("output-backend-location", filepath.Join(os.TempDir(), "output"), "Output backend's output address (for ltsrpc/gRPC/fRPC, e.g. localhost:1337), URI (for redis, e.g. redis://username:password@localhost:6379/0, or S3, e.g. http://accessKey:secretKey@localhost:9000?bucket=bucket&prefix=prefix or Cassandra/ScyllaDB, e.g. cassandra://username:password@localhost:9042?keyspace=keyspace&table=table&prefix=prefix) or directory (for directory backend)")
 	outputChunking := flag.Bool("output-backend-chunking", false, "Whether the output backend requires to be interfaced with in fixed chunks")
 
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
@@ -161,7 +161,7 @@ func main() {
 
 			*config.backendInstance = lbackend.NewDirectoryBackend(config.backendLocation, *s, *chunkSize, 512, false)
 
-		case backendTypeDudirekta:
+		case backendTypeLtsrpc:
 			ready := make(chan struct{})
 			registry := rpc.NewRegistry[services.BackendRemote, json.RawMessage](
 				struct{}{},

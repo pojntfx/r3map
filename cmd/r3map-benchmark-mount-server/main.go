@@ -12,9 +12,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/pojntfx/dudirekta/pkg/rpc"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
+	"github.com/pojntfx/ltsrpc/pkg/rpc"
 	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/mount/v1"
 	v1proto "github.com/pojntfx/r3map/pkg/api/proto/mount/v1"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"
@@ -38,8 +38,8 @@ var (
 
 func main() {
 	laddr := flag.String("addr", ":1337", "Listen address")
-	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of Dudirekta")
-	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of Dudirekta")
+	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of ltsrpc")
+	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of ltsrpc")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
 	size := flag.Int64("size", 536870912, "Size of the memory region or file to allocate")

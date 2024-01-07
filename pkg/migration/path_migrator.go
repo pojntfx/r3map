@@ -157,15 +157,15 @@ func (s *PathMigrator) Leech(
 			err error,
 		),
 
-		path string,
 		err error,
 	),
 
+	path string,
 	size int64,
 	err error,
 ) {
 	if s.seeder != nil {
-		return nil, 0, ErrSeedXORLeech
+		return nil, "", 0, ErrSeedXORLeech
 	}
 
 	s.leecher = NewPathLeecher(
@@ -211,20 +211,18 @@ func (s *PathMigrator) Leech(
 		}
 	}()
 
-	size, err = s.leecher.Open()
+	path, size, err = s.leecher.Open()
 	if err != nil {
-		return nil, 0, err
+		return nil, "", 0, err
 	}
 
 	return func() (
 		func() (*services.SeederService, error),
 
-		string,
 		error,
 	) {
-		path, err := s.leecher.Finalize()
-		if err != nil {
-			return nil, "", err
+		if err := s.leecher.Finalize(); err != nil {
+			return nil, err
 		}
 
 		return func() (
@@ -284,8 +282,8 @@ func (s *PathMigrator) Leech(
 			}
 
 			return svc, nil
-		}, path, err
-	}, size, err
+		}, err
+	}, path, size, err
 }
 
 func (s *PathMigrator) Close() error {

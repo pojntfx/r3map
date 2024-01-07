@@ -9,7 +9,7 @@ require (
 	github.com/loopholelabs/frisbee-go v0.7.1
 	github.com/loopholelabs/polyglot-go v0.5.1
 	github.com/minio/minio-go v6.0.14+incompatible
-	github.com/pojntfx/dudirekta v0.6.0
+	github.com/pojntfx/ltsrpc v0.6.0
 	github.com/pojntfx/go-nbd v0.3.2
 	github.com/redis/go-redis/v9 v9.2.1
 	github.com/rs/zerolog v1.30.0
@@ -49,3 +49,5 @@ require (
 )
 
 replace github.com/gocql/gocql => github.com/scylladb/gocql v1.10.0
+
+replace github.com/pojntfx/ltsrpc => ../ltsrpc

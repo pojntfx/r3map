@@ -22,7 +22,9 @@ type SliceLeecher struct {
 
 	slice     mmap.MMap
 	mmapMount sync.Mutex
-	size      int64
+
+	devicePath string
+	size       int64
 
 	released bool
 }
@@ -74,23 +76,24 @@ func (l *SliceLeecher) Wait() error {
 }
 
 func (l *SliceLeecher) Open() error {
-	size, err := l.path.Open()
+	devicePath, size, err := l.path.Open()
 	if err != nil {
 		return err
 	}
 
+	l.devicePath = devicePath
 	l.size = size
 
 	return nil
 }
 
 func (l *SliceLeecher) Finalize() ([]byte, error) {
-	devicePath, err := l.path.Finalize()
-	if err != nil {
+	if err := l.path.Finalize(); err != nil {
 		return nil, err
 	}
 
-	l.deviceFile, err = os.OpenFile(devicePath, os.O_RDWR, os.ModePerm)
+	var err error
+	l.deviceFile, err = os.OpenFile(l.devicePath, os.O_RDWR, os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +105,8 @@ func (l *SliceLeecher) Finalize() ([]byte, error) {
 
 	// We _MUST_ lock this slice so that it does not get paged out
 	// If it does, the Go GC tries to manage it, deadlocking _the entire runtime_
+	// We can also not return the `[]byte` in `Open` since we need to read it fully when locking,
+	// and the path leecher locks all reads till `Finalize()` is called
 	if err := l.slice.Lock(); err != nil {
 		return nil, err
 	}

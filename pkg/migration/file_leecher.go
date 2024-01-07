@@ -68,14 +68,8 @@ func (l *FileLeecher) Wait() error {
 	return l.path.Wait()
 }
 
-func (l *FileLeecher) Open() error {
-	_, err := l.path.Open()
-
-	return err
-}
-
-func (l *FileLeecher) Finalize() (*os.File, error) {
-	devicePath, err := l.path.Finalize()
+func (l *FileLeecher) Open() (*os.File, error) {
+	devicePath, _, err := l.path.Open()
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +79,11 @@ func (l *FileLeecher) Finalize() (*os.File, error) {
 		return nil, err
 	}
 
-	return l.deviceFile, nil
+	return l.deviceFile, err
+}
+
+func (l *FileLeecher) Finalize() error {
+	return l.path.Finalize()
 }
 
 func (l *FileLeecher) Release() (

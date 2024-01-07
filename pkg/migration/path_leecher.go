@@ -169,7 +169,7 @@ func (l *PathLeecher) Wait() error {
 	}
 }
 
-func (l *PathLeecher) Open() (int64, error) {
+func (l *PathLeecher) Open() (string, int64, error) {
 	ready := make(chan struct{})
 
 	go func() {
@@ -186,17 +186,17 @@ func (l *PathLeecher) Open() (int64, error) {
 
 	size, err := l.local.Size()
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
 
 	l.devicePath, err = utils.FindUnusedNBDDevice()
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
 
 	l.serverFile, err = os.Open(l.devicePath)
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
 
 	chunkCount := size / l.options.ChunkSize
@@ -236,11 +236,11 @@ func (l *PathLeecher) Open() (int64, error) {
 
 	_, ok := <-ready
 	if !ok {
-		return 0, ErrStartingTrackFailed
+		return "", 0, ErrStartingTrackFailed
 	}
 
 	if err := l.puller.Open(l.options.PullWorkers); err != nil {
-		return 0, err
+		return "", 0, err
 	}
 
 	l.lockableReadWriterAt = chunks.NewLockableReadWriterAt(
@@ -281,23 +281,23 @@ func (l *PathLeecher) Open() (int64, error) {
 	}()
 
 	if err := l.dev.Open(); err != nil {
-		return 0, err
+		return "", 0, err
 	}
 
-	return size, nil
+	return l.devicePath, size, nil
 }
 
-func (l *PathLeecher) Finalize() (string, error) {
+func (l *PathLeecher) Finalize() error {
 	dirtyOffsets, err := l.remote.Sync(l.ctx)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	l.pendingChunks.Add(len(dirtyOffsets))
 
 	if hook := l.hooks.OnAfterSync; hook != nil {
 		if err := hook(dirtyOffsets); err != nil {
-			return "", err
+			return err
 		}
 	}
 
@@ -316,7 +316,7 @@ func (l *PathLeecher) Finalize() (string, error) {
 	l.finalizedCond.Broadcast()
 	l.finalizedCond.L.Unlock()
 
-	return l.devicePath, nil
+	return nil
 }
 
 func (l *PathLeecher) Release() (
