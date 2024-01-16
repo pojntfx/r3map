@@ -9,8 +9,8 @@ require (
 	github.com/loopholelabs/frisbee-go v0.7.1
 	github.com/loopholelabs/polyglot-go v0.5.1
 	github.com/minio/minio-go v6.0.14+incompatible
-	github.com/pojntfx/ltsrpc v0.6.0
 	github.com/pojntfx/go-nbd v0.3.2
+	github.com/pojntfx/panrpc v0.6.2-0.20240115212816-c9ef59483c19
 	github.com/redis/go-redis/v9 v9.2.1
 	github.com/rs/zerolog v1.30.0
 	github.com/schollz/progressbar/v3 v3.13.1
@@ -35,8 +35,6 @@ require (
 	github.com/pilebones/go-udev v0.9.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/stretchr/testify v1.8.4 // indirect
-	github.com/teivah/broadcast v0.1.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/goleak v1.2.1 // indirect
 	golang.org/x/crypto v0.12.0 // indirect
@@ -49,5 +47,3 @@ require (
 )
 
 replace github.com/gocql/gocql => github.com/scylladb/gocql v1.10.0
-
-replace github.com/pojntfx/ltsrpc => ../ltsrpc

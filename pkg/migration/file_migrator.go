@@ -133,14 +133,14 @@ func (s *FileMigrator) Leech(
 			err error,
 		),
 
+		file *os.File,
 		err error,
 	),
 
-	file *os.File,
 	err error,
 ) {
 	if s.seeder != nil {
-		return nil, nil, ErrSeedXORLeech
+		return nil, ErrSeedXORLeech
 	}
 
 	s.leecher = NewFileLeecher(
@@ -186,18 +186,19 @@ func (s *FileMigrator) Leech(
 		}
 	}()
 
-	file, err = s.leecher.Open()
-	if err != nil {
-		return nil, nil, err
+	if err = s.leecher.Open(); err != nil {
+		return nil, err
 	}
 
 	return func() (
 		func() (*services.SeederService, error),
 
+		*os.File,
 		error,
 	) {
-		if err := s.leecher.Finalize(); err != nil {
-			return nil, err
+		file, err := s.leecher.Finalize()
+		if err != nil {
+			return nil, nil, err
 		}
 
 		return func() (
@@ -259,8 +260,8 @@ func (s *FileMigrator) Leech(
 			}
 
 			return svc, nil
-		}, err
-	}, file, err
+		}, file, err
+	}, err
 }
 
 func (s *FileMigrator) Close() error {

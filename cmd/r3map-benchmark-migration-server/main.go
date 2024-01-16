@@ -18,7 +18,7 @@ import (
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
-	"github.com/pojntfx/ltsrpc/pkg/rpc"
+	"github.com/pojntfx/panrpc/pkg/rpc"
 	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/migration/v1"
 	v1proto "github.com/pojntfx/r3map/pkg/api/proto/migration/v1"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"
@@ -43,8 +43,8 @@ var (
 
 func main() {
 	laddr := flag.String("laddr", ":1337", "Listen address")
-	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of ltsrpc")
-	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of ltsrpc")
+	enableGrpc := flag.Bool("grpc", false, "Whether to use gRPC instead of panrpc")
+	enableFrpc := flag.Bool("frpc", false, "Whether to use fRPC instead of panrpc")
 	verbose := flag.Bool("verbose", false, "Whether to enable verbose logging")
 
 	size := flag.Int64("size", 536870912, "Size of the memory region or file to allocate")
@@ -262,8 +262,8 @@ func main() {
 		registry := rpc.NewRegistry[struct{}, json.RawMessage](
 			svc,
 
-			time.Second*10,
 			ctx,
+
 			&rpc.Options{
 				OnClientConnect: func(remoteID string) {
 					clients++

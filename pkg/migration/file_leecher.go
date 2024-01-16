@@ -19,6 +19,8 @@ type FileLeecher struct {
 
 	deviceFile *os.File
 
+	devicePath string
+
 	released bool
 }
 
@@ -68,22 +70,29 @@ func (l *FileLeecher) Wait() error {
 	return l.path.Wait()
 }
 
-func (l *FileLeecher) Open() (*os.File, error) {
+func (l *FileLeecher) Open() error {
 	devicePath, _, err := l.path.Open()
 	if err != nil {
+		return err
+	}
+
+	l.devicePath = devicePath
+
+	return nil
+}
+
+func (l *FileLeecher) Finalize() (*os.File, error) {
+	if err := l.path.Finalize(); err != nil {
 		return nil, err
 	}
 
-	l.deviceFile, err = os.OpenFile(devicePath, os.O_RDWR, os.ModePerm)
+	var err error
+	l.deviceFile, err = os.OpenFile(l.devicePath, os.O_RDWR, os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
 
-	return l.deviceFile, err
-}
-
-func (l *FileLeecher) Finalize() error {
-	return l.path.Finalize()
+	return l.deviceFile, nil
 }
 
 func (l *FileLeecher) Release() (

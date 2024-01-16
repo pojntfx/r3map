@@ -21,7 +21,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
-	"github.com/pojntfx/ltsrpc/pkg/rpc"
+	"github.com/pojntfx/panrpc/pkg/rpc"
 	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/migration/v1"
 	v1proto "github.com/pojntfx/r3map/pkg/api/proto/migration/v1"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"
@@ -43,21 +43,21 @@ const (
 	backendTypeMemory    = "memory"
 	backendTypeDirectory = "directory"
 
-	seederTypeLtsrpc = "ltsrpc"
+	seederTypePanrpc = "panrpc"
 	seederTypeGrpc   = "grpc"
 	seederTypeFrpc   = "frpc"
 )
 
 var (
 	knownBackendTypes = []string{backendTypeFile, backendTypeMemory, backendTypeDirectory}
-	knownSeederTypes  = []string{seederTypeLtsrpc, seederTypeGrpc, seederTypeFrpc}
+	knownSeederTypes  = []string{seederTypePanrpc, seederTypeGrpc, seederTypeFrpc}
 
 	errUnknownBackend = errors.New("unknown backend")
 	errUnknownSeeder  = errors.New("unknown seeder")
 )
 
 func main() {
-	s := flag.Int64("size", 536870912, "Size of the memory region, file to allocate or to size assume in case of the ltsrpc/gRPC/fRPC remotes")
+	s := flag.Int64("size", 536870912, "Size of the memory region, file to allocate or to size assume in case of the panrpc/gRPC/fRPC remotes")
 	chunkSize := flag.Int64("chunk-size", client.MaximumBlockSize, "Chunk size to use")
 
 	pullWorkers := flag.Int64("pull-workers", 512, "Pull workers to launch in the background")
@@ -103,7 +103,7 @@ func main() {
 			knownSeederTypes,
 		),
 	)
-	seederLocation := flag.String("seeder-location", filepath.Join(os.TempDir(), "remote"), "Remote seeder's remote address (for ltsrpc/gRPC/fRPC, e.g. localhost:1337)")
+	seederLocation := flag.String("seeder-location", filepath.Join(os.TempDir(), "remote"), "Remote seeder's remote address (for panrpc/gRPC/fRPC, e.g. localhost:1337)")
 
 	slice := flag.Bool("slice", false, "Whether to use the slice frontend instead of the file frontend")
 	invalidate := flag.Int("invalidate", 0, "Percentage of chunks (0-100) to invalidate in between Track() and Finalize(). Will be ignored if a remote seeder is used.")
@@ -209,7 +209,7 @@ func main() {
 		seederBackend    backend.Backend
 	)
 	switch *seeder {
-	case seederTypeLtsrpc:
+	case seederTypePanrpc:
 		conn, err := net.Dial("tcp", *seederLocation)
 		if err != nil {
 			panic(err)
@@ -220,8 +220,8 @@ func main() {
 		registry := rpc.NewRegistry[services.SeederRemote, json.RawMessage](
 			&struct{}{},
 
-			time.Second*10,
 			ctx,
+
 			&rpc.Options{
 				OnClientConnect: func(remoteID string) {
 					ready <- struct{}{}

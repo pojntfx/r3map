@@ -171,7 +171,7 @@ While the direct mount API is a good choice for mounting a resource if there is 
 <details>
   <summary>Expand instructions</summary>
 
-While it is possible to use [any of the available backends](#backends) or creating a custom one, we'll be creating a client and server system, where a gRPC server exposes a resource backed by a file, and a managed mount uses a gRPC client to mount the resource. Note that since r3map is fully transport independent, there are other options available as well, such as fRPC and ltsrpc, which [can have different characteristics depending on network conditions and other factors](https://pojntfx.github.io/networked-linux-memsync/main.html#rpc-frameworks-1). To create the server exposing the resource, first the backend and gRPC need to be set up:
+While it is possible to use [any of the available backends](#backends) or creating a custom one, we'll be creating a client and server system, where a gRPC server exposes a resource backed by a file, and a managed mount uses a gRPC client to mount the resource. Note that since r3map is fully transport independent, there are other options available as well, such as fRPC and panrpc, which [can have different characteristics depending on network conditions and other factors](https://pojntfx.github.io/networked-linux-memsync/main.html#rpc-frameworks-1). To create the server exposing the resource, first the backend and gRPC need to be set up:
 
 ```go
 f, err := os.CreateTemp("", "")
@@ -690,7 +690,7 @@ Different backends tend to have different characteristics, and behave [different
 ## Acknowledgements
 
 - [pojntfx/go-bd](https://github.com/pojntfx/go-nbd) provides the Go NBD client and server.
-- [pojntfx/ltsrpc](https://github.com/pojntfx/ltsrpc) provides one of the example RPC frameworks for mounts and migrations.
+- [pojntfx/panrpc](https://github.com/pojntfx/panrpc) provides one of the example RPC frameworks for mounts and migrations.
 - [gRPC](https://grpc.io/) provides a reliable RPC framework for mounts and migrations.
 - [fRPC](https://frpc.io/) provides a high-performance RPC framework for mounts and migrations.
 
