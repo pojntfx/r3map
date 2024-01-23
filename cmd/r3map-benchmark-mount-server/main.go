@@ -13,7 +13,7 @@ import (
 
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
-	"github.com/pojntfx/panrpc/pkg/rpc"
+	"github.com/pojntfx/panrpc/go/pkg/rpc"
 	v1frpc "github.com/pojntfx/r3map/pkg/api/frpc/mount/v1"
 	v1proto "github.com/pojntfx/r3map/pkg/api/proto/mount/v1"
 	lbackend "github.com/pojntfx/r3map/pkg/backend"

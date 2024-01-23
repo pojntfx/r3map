@@ -72,8 +72,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/pojntfx/go-nbd v0.3.2 h1:qI6S4qsHD87V9fTH6jiS4DIqq/rWmI0El0xSToMUDeg=
 github.com/pojntfx/go-nbd v0.3.2/go.mod h1:SehHnbi2e8NiSAKby42Itm8SIoS7b+wAprsfPH3qgYk=
-github.com/pojntfx/panrpc v0.6.2-0.20240115212816-c9ef59483c19 h1:BTM3hMxTtwNH21Y99p82PNDlXPyo5pTOGIZ9PmaGTIM=
-github.com/pojntfx/panrpc v0.6.2-0.20240115212816-c9ef59483c19/go.mod h1:ZYb3woPvesUIksopO2lkyDeqqGIIdidEfZw0GoaKvdk=
+github.com/pojntfx/panrpc/go v0.0.0-20240122224243-a88b51e450d4 h1:wGKa3yICtsC9HHSb5aLIK3DErG+dphUwuphtqI4HM8g=
+github.com/pojntfx/panrpc/go v0.0.0-20240122224243-a88b51e450d4/go.mod h1:g7ftyveu8eJ0U5mqS+KRndCKaga0O4D7LKSByUf4R2Y=
 github.com/redis/go-redis/v9 v9.2.1 h1:WlYJg71ODF0dVspZZCpYmoF1+U1Jjk9Rwd7pq6QmlCg=
 github.com/redis/go-redis/v9 v9.2.1/go.mod h1:hdY0cQFCN4fnSYT6TkisLufl/4W5UIXyv0b/CLO2V2M=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
