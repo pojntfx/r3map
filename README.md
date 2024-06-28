@@ -29,6 +29,8 @@ The project is **accompanied by a scientific thesis**, which provides additional
 
 For more information, you can find the related benchmark and LaTeX code in the [thesis repository](https://github.com/pojntfx/networked-linux-memsync).
 
+**Looking for an even higher-performance, production-ready library?** Check out [Loophole Labs Silo](https://github.com/loopholelabs/silo). Silo is an alternative implementation of a subset of r3map's features that focuses on performance and offers support for continuous, push-based migrations.
+
 ## Installation
 
 You can add r3map to your Go project by running the following:
