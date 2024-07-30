@@ -222,7 +222,7 @@ func main() {
 
 			ctx,
 
-			&rpc.Options{
+			&rpc.RegistryHooks{
 				OnClientConnect: func(remoteID string) {
 					ready <- struct{}{}
 				},
@@ -252,6 +252,8 @@ func main() {
 				func(data json.RawMessage, v any) error {
 					return json.Unmarshal([]byte(data), v)
 				},
+
+				&rpc.LinkHooks{},
 			); err != nil {
 				if !utils.IsClosedErr(err) {
 					seederErrs <- err

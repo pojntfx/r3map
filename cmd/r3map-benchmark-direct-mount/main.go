@@ -17,7 +17,8 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/gocql/gocql"
-	"github.com/minio/minio-go"
+	minio "github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/pojntfx/go-nbd/pkg/backend"
 	"github.com/pojntfx/go-nbd/pkg/client"
 	"github.com/pojntfx/panrpc/go/pkg/rpc"
@@ -144,7 +145,7 @@ func main() {
 
 				ctx,
 
-				&rpc.Options{
+				&rpc.RegistryHooks{
 					OnClientConnect: func(remoteID string) {
 						ready <- struct{}{}
 					},
@@ -180,6 +181,8 @@ func main() {
 					func(data json.RawMessage, v any) error {
 						return json.Unmarshal([]byte(data), v)
 					},
+
+					&rpc.LinkHooks{},
 				); err != nil {
 					if !utils.IsClosedErr(err) {
 						panic(err)
@@ -252,20 +255,26 @@ func main() {
 				panic(errMissingPassword)
 			}
 
-			client, err := minio.New(u.Host, user.Username(), pw, u.Scheme == "https")
+			client, err := minio.New(
+				u.Host,
+				&minio.Options{
+					Creds:  credentials.NewStaticV4(user.Username(), pw, ""),
+					Secure: u.Scheme == "https",
+				},
+			)
 			if err != nil {
 				panic(err)
 			}
 
 			bucketName := u.Query().Get("bucket")
 
-			bucketExists, err := client.BucketExists(bucketName)
+			bucketExists, err := client.BucketExists(ctx, bucketName)
 			if err != nil {
 				panic(err)
 			}
 
 			if !bucketExists {
-				if err := client.MakeBucket(bucketName, ""); err != nil {
+				if err := client.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{}); err != nil {
 					panic(err)
 				}
 			}

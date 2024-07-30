@@ -8,7 +8,7 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/minio/minio-go"
+	minio "github.com/minio/minio-go/v7"
 )
 
 var (
@@ -51,7 +51,7 @@ func (b *S3Backend) ReadAt(p []byte, off int64) (n int, err error) {
 		log.Printf("ReadAt(len(p) = %v, off = %v)", len(p), off)
 	}
 
-	obj, err := b.client.GetObject(b.bucket, b.prefix+"-"+strconv.FormatInt(off, 10), minio.GetObjectOptions{})
+	obj, err := b.client.GetObject(b.ctx, b.bucket, b.prefix+"-"+strconv.FormatInt(off, 10), minio.GetObjectOptions{})
 	if err != nil {
 		if err.Error() == errNoSuchKey.Error() {
 			return len(p), nil
@@ -77,9 +77,9 @@ func (b *S3Backend) WriteAt(p []byte, off int64) (n int, err error) {
 		log.Printf("WriteAt(len(p) = %v, off = %v)", len(p), off)
 	}
 
-	nn, err := b.client.PutObject(b.bucket, b.prefix+"-"+strconv.FormatInt(off, 10), bytes.NewReader(p), int64(len(p)), minio.PutObjectOptions{})
+	nn, err := b.client.PutObject(b.ctx, b.bucket, b.prefix+"-"+strconv.FormatInt(off, 10), bytes.NewReader(p), int64(len(p)), minio.PutObjectOptions{})
 
-	return int(nn), err
+	return int(nn.Size), err
 }
 
 func (b *S3Backend) Size() (int64, error) {
