@@ -1,8 +1,10 @@
+<img alt="Project icon" style="vertical-align: middle;" src="./docs/icon.svg" width="128" height="128" align="left">
+
 # r3map
 
-![Logo](./docs/logo-readme.png)
-
 Re**m**ote **mm**ap: High-performance remote memory region mounts and migrations in user space.
+
+<br/>
 
 [![hydrun CI](https://github.com/pojntfx/r3map/actions/workflows/hydrun.yaml/badge.svg)](https://github.com/pojntfx/r3map/actions/workflows/hydrun.yaml)
 ![Go Version](https://img.shields.io/badge/go%20version-%3E=1.20-61CFDD.svg)
@@ -13,7 +15,7 @@ Re**m**ote **mm**ap: High-performance remote memory region mounts and migrations
 
 r3map is a library that simplifies working with remote memory regions and migrating them between hosts.
 
-It can ...
+It enables you to:
 
 - **Create a virtual `[]byte` or a virtual file that transparently downloads remote chunks only when they are accessed**: By providing multiple frontends (such as a memory region and a file/path) for accessing or migrating a resource, integrating remote memory into existing applications is possible with little to no changes, and fully language-independent.
 - **`mmap` any local or remote resource instead of just files**: By exposing a simple backend interface and being fully transport-independent, r3map makes it possible to map resources such as a **S3 bucket, Cassandra or Redis database**, or even a tape drive into a memory region efficiently, as well as migrating it over an RPC framework of your choice, such as gRPC.
@@ -39,7 +41,7 @@ You can add r3map to your Go project by running the following:
 $ go get github.com/pojntfx/r3map/...@latest
 ```
 
-## Usage
+## Tutorial
 
 ### 1. Mapping a Remote Resource into Memory with the Direct Mount API
 
@@ -733,6 +735,6 @@ Have any questions or need help? Chat with us [on Matrix](https://matrix.to/#/#r
 
 ## License
 
-r3map (c) 2023 Felicitas Pojtinger and contributors
+r3map (c) 2024 Felicitas Pojtinger and contributors
 
 SPDX-License-Identifier: Apache-2.0
