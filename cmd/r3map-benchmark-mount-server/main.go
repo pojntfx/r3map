@@ -148,8 +148,6 @@ func main() {
 		registry := rpc.NewRegistry[struct{}, json.RawMessage](
 			svc,
 
-			ctx,
-
 			&rpc.RegistryHooks{
 				OnClientConnect: func(remoteID string) {
 					clients++
@@ -194,10 +192,15 @@ func main() {
 						}
 					}()
 
+					linkCtx, cancelLinkCtx := context.WithCancel(ctx)
+					defer cancelLinkCtx()
+
 					encoder := json.NewEncoder(conn)
 					decoder := json.NewDecoder(conn)
 
 					if err := registry.LinkStream(
+						linkCtx,
+
 						func(v rpc.Message[json.RawMessage]) error {
 							return encoder.Encode(v)
 						},
